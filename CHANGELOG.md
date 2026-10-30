@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Lineage through a step no longer shows a column named after the step's output.**
+  Given the step registry, a step feeds only the columns its manifest produces, so a
+  walk or a rendered graph no longer carries `customer_profile.profile` beside
+  `customer_profile.segment`. Without a registry, as in `bloomery lineage`, that node
+  is still the step's one out-edge, standing for the whole relation it writes. In
+  `timeline()`, a change to a `quality:` rule a wiring declares on its output is now
+  reported on the step's node. (#381)
+
 ## [0.9.0] - 2026-10-29
 
 ### Added

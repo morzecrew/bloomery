@@ -332,7 +332,7 @@ def _produced_columns(project: Project, steps: StepRegistry) -> dict[str, tuple[
 
     Only the manifest says what a step produces, so a step the registry does
     not hold contributes nothing here: lowering refuses it (`UnknownStep`), and
-    until then the graph has the wiring's relation node alone.
+    until then the graph has the node the wiring names after the output alone.
     """
     produced: dict[str, tuple[str, ...]] = {}
 
@@ -372,9 +372,9 @@ def _step_edges(
     cycle detection was lost.
 
     Where the manifest is known, a step output is read like an entity, from
-    each column it produces, and the step feeds each of those columns as well
-    as the relation node (S-0048/D-10). Without it, the step-to-step edge and
-    the relation node are all the wiring says.
+    each column it produces, and the step feeds each of those columns
+    (S-0048/D-10). Without it, the step-to-step edge and a node named after the
+    output, standing for the relation, are all the wiring says.
     """
 
     if project.steps is None:
@@ -417,12 +417,14 @@ def _step_edges(
             )
         for output_name, relation in sorted(wiring.outputs.items()):
             produced = relation.rsplit(".", 1)[-1]
-            edges.append(
-                Edge(src=node, dst=entity_field_node(produced, output_name), label="step_output")
-            )
+            # The node named after the output stands for the whole relation,
+            # and only where nothing better is known: given the manifest, the
+            # produced columns say it, and the output's name is no column of
+            # what it writes (#381).
+            written = columns.get(produced, (output_name,))
             edges.extend(
                 Edge(src=node, dst=entity_field_node(produced, column), label="step_output")
-                for column in columns.get(produced, ())
+                for column in written
             )
             # A declared `canonical:` link makes the column *available*, which
             # is the whole of what a metric's reachability asks (S-0022
