@@ -70,6 +70,21 @@ def test_the_reject_table_and_what_its_refresh_loses_stay_in_the_advice() -> Non
     )
 
 
+def test_a_new_quarantine_block_is_added_and_a_retention_edit_changed() -> None:
+    bare = _incremental(plan_ir.column("id", required=True))
+    kept = _incremental(plan_ir.column("id", required=True), quarantine=QuarantineIR(retention="90d"))
+    longer = _incremental(plan_ir.column("id", required=True), quarantine=QuarantineIR(retention="180d"))
+
+    (added,) = plan(bare, kept).changes  # type: ignore[arg-type]
+    (edited,) = plan(kept, longer).changes  # type: ignore[arg-type]
+
+    assert (added.action, added.detail) == (ChangeAction.ADDED, "quarantine block added (policy only)")
+    assert (edited.action, edited.detail) == (
+        ChangeAction.CHANGED,
+        "quarantine retention changed (policy only)",
+    )
+
+
 def test_a_rename_names_the_new_column_and_a_retype_the_column_retyped() -> None:
     old = _incremental(plan_ir.column("quantity", expr="q"))
     new = _incremental(plan_ir.column("qty", expr="q", renamed_from="quantity", required=True))

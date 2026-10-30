@@ -1518,15 +1518,20 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
             )
         )
     elif old_retention != new_retention:
+        # A block that was not there is added, not a retention edit: the
+        # reject table is new, and a reader grouping by `action` must see it.
+        added = old_e.quarantine is None
         acc.changes.append(
             Change(
                 new_e.name,
                 subject,
                 ChangeClass.ADDITIVE,
-                "quarantine retention changed (policy only)",
+                "quarantine block added (policy only)"
+                if added
+                else "quarantine retention changed (policy only)",
                 old=old_retention or None,
                 new=new_retention or None,
-                action=ChangeAction.CHANGED,
+                action=ChangeAction.ADDED if added else ChangeAction.CHANGED,
             )
         )
 
