@@ -101,7 +101,7 @@ relation, and a shared name makes the emitted predicate compare a column against
 | `unit` | `currency` \| `count` \| `ratio` | no | Drives the unit guardrail; absent = unknown. `ratio` is dimensionless — a percentage, a rate, a sign or a 0/1 flag: like `count` it carries no tax basis, so it can scale money, and it may not be added to money or a count. It declares no `currency` or `tax_basis` |
 | `tax_basis` | `net` \| `gross` \| `unknown` | no | Drives the tax-basis guardrail |
 | `currency` | ISO 4217 code | no | Drives the currency guardrail |
-| `per_unit` | bool | no (`false`) | The value is a rate that holds per unit of each row reading it (a unit cost, a price) rather than an amount of its entity. The grain guard admits it read down one many-to-one relationship, and a metric template can name it on a mart that flattens its entity. Not verified: a per-unit amount summed per row overstates it |
+| `per_unit` | bool | no (`false`) | The value is a rate that holds per unit of each row reading it (a unit cost, a price) rather than an amount of its entity. The grain guard admits it read down a chain of many-to-one relationships, and a metric template can name it on a mart that flattens its entity. Not verified: a per-unit amount summed per row overstates it |
 | `recipes` | list of Recipe | no (`[]`) | Alternative derivation paths, ordered by reliability |
 
 ### Recipe

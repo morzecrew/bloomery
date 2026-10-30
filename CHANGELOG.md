@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A `per_unit` field can be read through a chain of many-to-one relationships**, not
+  only one: a marketplace sale reading the product's unit cost through its item compiles,
+  and each mart reads the column it flattened the cost into. One one-to-many hop anywhere
+  in the chain still refuses it, and a refusal now names the chain it was reached by
+  rather than "no declared relationship". (#382)
+
 ## [0.9.0] - 2026-10-29
 
 ### Added
