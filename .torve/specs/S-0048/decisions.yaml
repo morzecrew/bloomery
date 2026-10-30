@@ -121,7 +121,7 @@ decisions:
       `resolve()` takes the step registry as `steps`, defaulting to the empty one,
       and the compile pipeline passes it the registry it was handed. Where the registry
       holds a wired step's manifest, the step draws a `step_output` edge to each column
-      its bound output produces, beside the relation node; a step input bound to that
+      its bound output produces and to no node named after the output; a step input bound to that
       output reads it whole, from each of those columns; and an expression metric whose
       grain is that output draws `expr` edges from the produced columns its `expr`
       names. A step the registry does not hold keeps the wiring-only edges. No label
@@ -136,7 +136,9 @@ decisions:
       A walk runs through a `sql_model` step: downstream from an input column to the
       columns the step produces and to the metrics and marts over them, and upstream
       back again. `bloomery lineage` takes no registry, so it still shows the wiring
-      alone, and so does a caller of `resolve()` that passes none. Lowering, the IR
+      alone, and so does a caller of `resolve()` that passes none: the step's out-edge
+      goes to the one `entity_field` node named after the output, which stands for the
+      relation it writes rather than for a column of it. Lowering, the IR
       and every fingerprint are unchanged, since nothing past resolve reads the graph
     rationale: >-
       Only the manifest says what a step produces, and resolve never saw a manifest,
@@ -146,6 +148,16 @@ decisions:
       so resolve takes it as an argument rather than finding it. A step's input is
       still drawn from every column of the relation it binds rather than from its
       `requires`, which is a lower bound the compile checks (S-0034/D-57) and can be
-      empty, so narrowing to it could cut a step off from what it reads. The relation
-      node stays because a timeline reads it as the whole relation
+      empty, so narrowing to it could cut a step off from what it reads. The node named
+      after the output first stayed beside the columns, as the whole relation a timeline
+      compared, and a walk then showed a field the entity does not have (#381). Once the
+      columns are known it says nothing they and the step's own node do not: a timeline
+      compares each produced column, and the step's node carries the outputs and the
+      `quality:` rules its wiring declares on them, which live on the produced entity
+      and on nothing else the graph has a node for. Without
+      a manifest it is the only thing the wiring says the step writes, so it stays there.
+      The owner kept it an `entity_field` node, documented as the relation (2026-10-30),
+      over a node kind of its own: a new kind would add a node-id prefix, and every
+      prefix is a reserved entity name (S-0059/D-6), so a project with an entity of
+      that name would stop compiling
     cites: [D-6, D-9, S-0034/D-11, S-0034/D-57]

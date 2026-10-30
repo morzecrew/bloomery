@@ -13,8 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only one: a marketplace sale reading the product's unit cost through its item compiles,
   and each mart reads the column it flattened the cost into. A hop read one-to-many, from
   a parent to its children, anywhere in the chain still refuses it, and a refusal now
-  names the chain it was reached by
-  rather than "no declared relationship". (#382)
+  names the chain it was reached by rather than "no declared relationship". (#382)
+
+### Fixed
+
+- **Lineage through a step no longer shows a column named after the step's output.**
+  Given the step registry, a step feeds only the columns its manifest produces, so a
+  walk or a rendered graph no longer carries `customer_profile.profile` beside
+  `customer_profile.segment`. Without a registry, as in `bloomery lineage`, that node
+  is still the step's one out-edge, standing for the whole relation it writes. In
+  `timeline()`, a change to a `quality:` rule a wiring declares on its output is now
+  reported on the step's node. (#381)
 
 ## [0.9.0] - 2026-10-29
 
