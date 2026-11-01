@@ -24,6 +24,7 @@ import pytest
 from bloomery import Target, compile_project, load_project
 from bloomery.emit import ArtifactKind, get_emitter
 from bloomery.emit.retrieval import MANIFEST_PATH, MANIFEST_VERSION
+from bloomery.ir import Layer
 from bloomery.naming import PrefixNaming
 from bloomery.steps import StepManifest, StepRegistry
 
@@ -234,6 +235,32 @@ def test_a_tenant_prefix_reaches_the_corpus_relation() -> None:
 
     assert profiles["chunk_hybrid"]["relation"]["namespace"] == "acme_silver"
     assert profiles["chunk_dense"]["relation"]["namespace"] == "acme_gold"
+
+
+def test_a_catalog_reaches_the_corpus_relation_only_where_the_policy_names_one() -> None:
+    """#389: a two-part policy's manifest is unchanged, and a catalog is its
+    own key beside the namespace rather than folded into it."""
+
+    class Lake(PrefixNaming):
+        def relation(self, entity: str, layer: Layer) -> tuple[str, str, str]:  # type: ignore[override]
+            return ("lake", *super().relation(entity, layer))
+
+    relation = manifest_payload(naming=Lake("acme"))["profiles"]["chunk_hybrid"]["relation"]
+
+    assert (relation["catalog"], relation["namespace"]) == ("lake", "acme_silver")
+    assert "catalog" not in manifest_payload()["profiles"]["chunk_hybrid"]["relation"]
+
+
+def test_a_manifest_naming_a_catalog_is_one_a_version_one_reader_does_not_understand() -> None:
+    """Such a reader interpolates `namespace.table`, which names the default
+    catalog's relation: the version is what tells it to stop."""
+
+    class Lake(PrefixNaming):
+        def relation(self, entity: str, layer: Layer) -> tuple[str, str, str]:  # type: ignore[override]
+            return ("lake", *super().relation(entity, layer))
+
+    assert manifest_payload(naming=Lake("acme"))["retrieval_manifest_version"] == 2
+    assert manifest_payload()["retrieval_manifest_version"] == MANIFEST_VERSION == 1
 
 
 def test_the_hybrid_side_and_the_projection_are_carried_verbatim() -> None:

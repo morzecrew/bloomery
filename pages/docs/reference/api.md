@@ -34,6 +34,33 @@ the string name of a registered extension emitter; `dialect` is `"duckdb"`,
 (`silver.<entity>`, `gold.mart_<name>`). Same specs in, byte-identical artifacts out.
 Each `EmittedArtifact` carries `path`, `content`, `kind`, and `checksum`.
 
+A `NamingPolicy` is any object with `relation(entity, layer)` returning
+`(namespace, relation)`, or `(catalog, namespace, relation)` for a relation in a catalog
+other than the engine's default. A `None` catalog means the default. The catalog is
+rendered as a real third part on every target: the SQL and the SQLMesh model name,
+dbt's `+database`, a source's `database` and a snapshot's `target_database`,
+MetricFlow's `node_relation.database`, and Cube's `sql_table`. A plan names the same
+relation when the hydrator is built under the same policy. To read bronze from an
+attached Postgres and write silver and gold to a DuckLake:
+
+```python
+from bloomery.ir import Layer
+from bloomery.naming import DefaultNaming
+
+class LakeNaming:
+    def relation(self, entity, layer):
+        namespace, relation = DefaultNaming().relation(entity, layer)
+        return ("pg" if layer is Layer.BRONZE else "lake", namespace, relation)
+```
+
+Writing the catalog into the namespace instead (`"lake.silver"`) renders as one quoted
+identifier, a schema that does not exist. A model in a named catalog is written at
+`models/<catalog>/<namespace>/<relation>` (a dbt snapshot stays at
+`snapshots/<entity>_snapshot.sql`), and two projects composed under S-0002/D-7 must agree on
+the catalog as on the rest of the name. dbt refuses at compile what it cannot place: two
+relations of one name, which dbt would take for one model, two bronze namespaces that would
+share a source name, and a catalog named like a namespace of the default catalog.
+
 `steps` is a `StepRegistry` — the manifests behind whatever the project's
 `steps_version` document wires. It is a *caller-assembled* argument rather than a spec
 document because bloomery reads no step files: a project that wires a step and compiles

@@ -32,6 +32,7 @@ from bloomery.ir import (
     SourceIR,
     SqlExpr,
 )
+from bloomery.naming import QualifiedName, qualified
 from bloomery.quality import (
     FLAGS_COLUMN,
     INGESTION_METADATA,
@@ -278,7 +279,7 @@ def _with_probes(select: exp.Select, entity: EntityIR, ctx: EmitContext) -> exp.
     for rule in _referential_rules(entity):
         params = params_of(rule)
         alias = ref_alias(params["relationship"])
-        namespace, relation = ctx.naming.relation(params["to_entity"], Layer.SILVER)
+        physical = qualified(ctx.naming, params["to_entity"], Layer.SILVER)
         conditions = [
             exp.EQ(
                 this=exp.column(pair.split("=", 1)[0], table=_EXTRACT_ALIAS),
@@ -288,7 +289,7 @@ def _with_probes(select: exp.Select, entity: EntityIR, ctx: EmitContext) -> exp.
             if name.startswith("via_")
         ]
         joined = joined.join(
-            exp.table_(relation, db=namespace, alias=alias),
+            physical.table(alias=alias),
             on=conjunction(conditions),
             join_type="LEFT",
         )
@@ -418,7 +419,7 @@ def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Ex
     the same chain would otherwise absorb an overflow the compiler believes
     cannot happen here.
     """
-    namespace, relation = ctx.naming.relation(fx.relation, Layer.SILVER)
+    rates = qualified(ctx.naming, fx.relation, Layer.SILVER)
     anchor = guaranteed(
         (marker.expressions[CONVERT_ANCHOR],) if _bound(marker) else (),
         expected=(
@@ -441,7 +442,7 @@ def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Ex
     select = (
         exp.Select()
         .select(exp.column(fx.rate, table=_FX_ALIAS))
-        .from_(exp.table_(relation, db=namespace, alias=_FX_ALIAS))
+        .from_(rates.table(alias=_FX_ALIAS))
         .where(exp.and_(*conditions))
     )
 
@@ -703,9 +704,9 @@ def _branch_select(
     """
 
     if from_payload:
-        namespace, relation = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+        read = qualified(ctx.naming, reject_relation(entity), Layer.SILVER)
     else:
-        namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
+        read = qualified(ctx.naming, origin.relation, Layer.BRONZE)
 
     def source(node: Expression) -> Expression:
         return _from_payload(node) if from_payload else node
@@ -788,7 +789,7 @@ def _branch_select(
         # projected three literals that nothing above it ever selected.
         projections.extend(_provenance(entity, origin, ctx))
 
-    select = exp.Select().select(*projections).from_(exp.table_(relation, db=namespace))
+    select = exp.Select().select(*projections).from_(read.table())
 
     if from_payload:
         unresolved: Expression = exp.Is(this=exp.column("resolved_at"), expression=exp.null())
@@ -2097,10 +2098,7 @@ def conservation_audit_select(
     # Summed over every branch (S-0051): the law is "bronze rows = surviving
     # + diverted", and a merged entity's bronze side is every relation it reads.
     bronze_relations = [
-        exp.table_(relation, db=namespace)
-        for namespace, relation in (
-            ctx.naming.relation(origin.relation, Layer.BRONZE) for origin in entity.sources
-        )
+        qualified(ctx.naming, origin.relation, Layer.BRONZE).table() for origin in entity.sources
     ]
     diverted = _route_predicate(entity, _SURVIVORS_CTE, quarantined=True)
 
@@ -2489,7 +2487,7 @@ def _candidate_wins(entity: EntityIR) -> Expression:
 # ....................... #
 
 
-def _admitted_since(entity: EntityIR, namespace: str, relation: str) -> Expression:
+def _admitted_since(entity: EntityIR, admitted: QualifiedName) -> Expression:
     """Whether the identity is in the entity — and, on a historical entity,
     *because of this recovery* rather than because of a version that predates
     it.
@@ -2529,7 +2527,7 @@ def _admitted_since(entity: EntityIR, namespace: str, relation: str) -> Expressi
             this=_identity_operand(entity, table=None, provenance="source_relation"),
             query=exp.Select()
             .select(*_replay_identity(entity, table=_TARGET_ALIAS))
-            .from_(exp.table_(relation, db=namespace, alias=_TARGET_ALIAS))
+            .from_(admitted.table(alias=_TARGET_ALIAS))
             .subquery(),
         )
 
@@ -2553,7 +2551,7 @@ def _admitted_since(entity: EntityIR, namespace: str, relation: str) -> Expressi
     return exp.Exists(
         this=exp.Select()
         .select(exp.Literal.number(1))
-        .from_(exp.table_(relation, db=namespace, alias=_TARGET_ALIAS))
+        .from_(admitted.table(alias=_TARGET_ALIAS))
         .where(conjunction(matched))
     )
 
@@ -2600,8 +2598,8 @@ def _redelivery(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> exp.Ins
     column would be absent too, and that one is refused rather than written —
     see ``_snapshot_replay`` in :mod:`bloomery.resolve.build`.
     """
-    bronze_namespace, bronze_relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
-    reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    bronze_physical = qualified(ctx.naming, origin.relation, Layer.BRONZE)
+    reject_physical = qualified(ctx.naming, reject_relation(entity), Layer.SILVER)
     # Minus the ingestion metadata, which the payload carries whenever the
     # mapping acknowledges those bronze columns (`unmapped:`) and which this
     # statement writes for itself — naming a column twice in one INSERT is not
@@ -2663,13 +2661,13 @@ def _redelivery(entity: EntityIR, origin: SourceIR, ctx: EmitContext) -> exp.Ins
 
     return exp.Insert(
         this=exp.Schema(
-            this=exp.table_(bronze_relation, db=bronze_namespace),
+            this=bronze_physical.table(),
             expressions=[exp.column(name) for name in (*payload, *INGESTION_METADATA)],
         ),
         expression=(
             exp.Select()
             .select(*values)
-            .from_(exp.table_(reject_rel, db=reject_namespace))
+            .from_(reject_physical.table())
             .where(conjunction(conditions))
         ),
     )
@@ -2687,7 +2685,7 @@ def _replay_merge(entity: EntityIR, ctx: EmitContext) -> exp.Merge:
     type 1 replay exactly as it was, and a shared rewrite would put the
     branch nobody needs in the path everybody takes.
     """
-    entity_namespace, entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
+    entity_physical = qualified(ctx.naming, entity.name, Layer.SILVER)
     columns = [
         *(column.name for column in entity.columns),
         # A merged entity's relation carries provenance, so the MERGE has to
@@ -2734,7 +2732,7 @@ def _replay_merge(entity: EntityIR, ctx: EmitContext) -> exp.Merge:
         ),
     )
     merge = exp.Merge(
-        this=exp.table_(entity_relation, db=entity_namespace, alias=_TARGET_ALIAS),
+        this=entity_physical.table(alias=_TARGET_ALIAS),
         using=_replay_candidates(entity, ctx).subquery(alias=_REPLAY_ALIAS),
         on=conjunction(
             [
@@ -2811,15 +2809,15 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     the statements and the caller runs them. The reject row is kept as audit
     history; retention, never replay, is what deletes it.
     """
-    entity_namespace, entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
-    reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    entity_physical = qualified(ctx.naming, entity.name, Layer.SILVER)
+    reject_physical = qualified(ctx.naming, reject_relation(entity), Layer.SILVER)
     admit: tuple[Expression, ...] = (
         tuple(_redelivery(entity, origin, ctx) for origin in entity.sources)
         if entity.scd == "type2"
         else (_replay_merge(entity, ctx),)
     )
     resolve = exp.Update(
-        this=exp.table_(reject_rel, db=reject_namespace),
+        this=reject_physical.table(),
         expressions=[
             exp.EQ(this=exp.column("resolved_at"), expression=exp.CurrentTimestamp()),
             exp.EQ(this=exp.column("last_evaluated_at"), expression=exp.CurrentTimestamp()),
@@ -2837,13 +2835,13 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
                     # which never replays again. `_source` is a real column of
                     # a merged entity's model (D18/D19), so the pair is
                     # available on both sides.
-                    _admitted_since(entity, entity_namespace, entity_relation),
+                    _admitted_since(entity, entity_physical),
                 ]
             )
         ),
     )
     still_failing = exp.Merge(
-        this=exp.table_(reject_rel, db=reject_namespace, alias=_TARGET_ALIAS),
+        this=reject_physical.table(alias=_TARGET_ALIAS),
         using=_reevaluated(entity, ctx).subquery(alias=_REPLAY_ALIAS),
         # The same pair, for the same reason: a MERGE whose ON matches two
         # target rows for one source row is not a narrower update, it is an

@@ -196,7 +196,10 @@ therefore arrives with its effective `k` and `depth` even where the document nam
 
 The corpus relation arrives resolved through the naming policy, as a `namespace`/`table`
 pair beside the logical name — with the corpus `analyser` copied through beside it where one
-is declared. Split rather than dotted: the grammar promises nothing about
+is declared. Where the policy places the relation in a catalog other than the engine's
+default, a `catalog` key comes with the pair and the manifest is version 2: a reader that
+knows only version 1 would query the relation of that name in the default catalog, and the
+version is how it knows to stop. Split rather than dotted: the grammar promises nothing about
 quoting, so a consumer that has to quote each part cannot recover them from one string.
 
 ## What a runtime still owes

@@ -1,7 +1,8 @@
 """The SQLMesh emitter (S-0025/sqlmesh-emitter-primary) — the primary target.
 
 One ``MODEL (...)`` block plus ``SELECT`` per entity at
-``models/<namespace>/<relation>.sql``. The SELECT is built as a SQLGlot AST
+``models/<namespace>/<relation>.sql``, or ``models/<catalog>/<namespace>/<relation>.sql``
+where the naming policy names a catalog (S-0025/D-23). The SELECT is built as a SQLGlot AST
 by the shared lowering (:mod:`bloomery.emit.lower` — the same AST dbt
 renders) and rendered through the dialect port; Jinja renders only the
 envelope, from a template that interpolates *pre-rendered strings*, never SQL
@@ -110,6 +111,7 @@ from bloomery.ir import (
     SCDKind,
 )
 from bloomery.ir.nodes import with_imported
+from bloomery.naming import qualified
 from bloomery.quality import RunContext, is_quality_mart
 from bloomery.typing import DateType, LogicalType, TimestampType
 
@@ -517,7 +519,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
     if is_quality_mart(mart):
         return _quality_mart_artifact(mart, ir, ctx)
 
-    namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    physical = qualified(ctx.naming, mart.name, Layer.GOLD)
     base = guaranteed(
         (entity for entity in ir.entities if entity.name == mart.base),
         expected=f"the base entity {mart.base!r} of mart {mart.name!r}",
@@ -525,7 +527,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
     )
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
-        name=f"{namespace}.{relation}",
+        name=physical.dotted,
         kind=_mart_kind_clause(mart, base),
         grain=", ".join(base.key),
         partitioned_by=_partitioned_by(mart.partition_by, ctx),
@@ -538,7 +540,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
         select=ctx.dialect.render(mart_select(mart, ctx)),
     )
     return EmittedArtifact.create(
-        path=f"models/{namespace}/{relation}.sql",
+        path=f"models/{physical.path}.sql",
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
@@ -560,7 +562,7 @@ def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> Emitt
     the parent's and a rollup declares no column of its own.
     """
 
-    namespace, relation = ctx.naming.relation(rollup.name, Layer.GOLD)
+    physical = qualified(ctx.naming, rollup.name, Layer.GOLD)
     parent = guaranteed(
         (mart for mart in ir.marts if mart.name == rollup.of),
         expected=f"the parent mart {rollup.of!r} of rollup {rollup.name!r}",
@@ -568,7 +570,7 @@ def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> Emitt
     )
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
-        name=f"{namespace}.{relation}",
+        name=physical.dotted,
         kind=_rollup_kind_clause(rollup, parent),
         grain=", ".join(rollup.keep),
         partitioned_by=_partitioned_by(rollup.partition_by, ctx),
@@ -578,7 +580,7 @@ def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> Emitt
         select=ctx.dialect.render(rollup_select(rollup, ir, ctx)),
     )
     return EmittedArtifact.create(
-        path=f"models/{namespace}/{relation}.sql",
+        path=f"models/{physical.path}.sql",
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
@@ -727,10 +729,10 @@ def _quality_mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> Emi
     it is built from rule evaluations rather than from a base entity — which
     is also why the base-entity lookup above is skipped here.
     """
-    namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    physical = qualified(ctx.naming, mart.name, Layer.GOLD)
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
-        name=f"{namespace}.{relation}",
+        name=physical.dotted,
         kind="FULL",
         grain="entity, rule",
         partitioned_by="",
@@ -738,7 +740,7 @@ def _quality_mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> Emi
         select=ctx.dialect.render(quality_mart_select(ir, ctx, _SQLMESH_RUN)),
     )
     return EmittedArtifact.create(
-        path=f"models/{namespace}/{relation}.sql",
+        path=f"models/{physical.path}.sql",
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
@@ -763,11 +765,11 @@ def _reconcile_artifacts(
     AUDIT block itself, so the property travels with the audit rather than with
     each reference to it.
     """
-    namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
+    physical = qualified(ctx.naming, reconcile_relation(check), Layer.SILVER)
     name = f"{check.name}_reconcile"
     model = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
-        name=f"{namespace}.{relation}",
+        name=physical.dotted,
         kind="FULL",
         grain=", ".join(reconcile_keys(check, ir)),
         partitioned_by="",
@@ -782,7 +784,7 @@ def _reconcile_artifacts(
     )
     return (
         EmittedArtifact.create(
-            path=f"models/{namespace}/{relation}.sql",
+            path=f"models/{physical.path}.sql",
             content=model.rstrip("\n") + "\n",
             kind=ArtifactKind.MODEL,
         ),
@@ -799,11 +801,12 @@ def _reconcile_artifacts(
 
 def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifact:
     # The date dimension is bloomery-owned, not a mart: it keeps its declared
-    # relation name; the naming policy still shapes the gold namespace.
-    namespace, _mart_relation = ctx.naming.relation(dim.name, Layer.GOLD)
+    # relation name; the naming policy still shapes the gold namespace and
+    # its catalog.
+    physical = qualified(ctx.naming, dim.name, Layer.GOLD)._replace(relation=dim.name)
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
-        name=f"{namespace}.{dim.name}",
+        name=physical.dotted,
         kind="FULL",
         grain=f"date_{dim.grain}",
         partitioned_by="",
@@ -811,7 +814,7 @@ def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifac
         select=ctx.dialect.render(dim_date_select(dim)),
     )
     return EmittedArtifact.create(
-        path=f"models/{namespace}/{dim.name}.sql",
+        path=f"models/{physical.path}.sql",
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
@@ -1012,10 +1015,10 @@ def _reject_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
     three — and wrong for ``first_seen``, whose whole job is to remember the
     delivery before this one.
     """
-    namespace, relation = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    physical = qualified(ctx.naming, reject_relation(entity), Layer.SILVER)
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
-        name=f"{namespace}.{relation}",
+        name=physical.dotted,
         kind=_REJECT_KIND.render(
             key=REJECT_KEY,
             assignments=", ".join(
@@ -1036,7 +1039,7 @@ def _reject_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
         select=ctx.dialect.render(reject_select(entity, ctx)),
     )
     return EmittedArtifact.create(
-        path=f"models/{namespace}/{relation}.sql",
+        path=f"models/{physical.path}.sql",
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
@@ -1163,12 +1166,12 @@ class SQLMeshEmitter:
                 # for it too would be two models at one path — the collision
                 # refused everywhere else.
                 continue
-            namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
+            physical = qualified(ctx.naming, entity.name, Layer.SILVER)
             audits, audit_artifacts = _entity_audits(entity, ctx)
             coverage, coverage_reads = _coverage_audits_for(entity, ir)
             content = _ENVELOPE.render(
                 fingerprint=ctx.fingerprint,
-                name=f"{namespace}.{relation}",
+                name=physical.dotted,
                 kind=_kind_clause(entity),
                 interval_unit="'day'" if entity.arrival_lag_hours is not None else None,
                 grain=", ".join(entity.key),
@@ -1177,7 +1180,7 @@ class SQLMeshEmitter:
                 # are declared or the sibling resolves to a virtual-layer view
                 # that need not exist on a first plan (the D40 trap).
                 depends_on=", ".join(
-                    ".".join(ctx.naming.relation(name, Layer.SILVER)) for name in coverage_reads
+                    qualified(ctx.naming, name, Layer.SILVER).dotted for name in coverage_reads
                 ),
                 partitioned_by=_partitioned_by(entity.partition_by, ctx),
                 audits=", ".join(filter(None, (audits, *coverage))),
@@ -1187,7 +1190,7 @@ class SQLMeshEmitter:
             )
             artifacts.append(
                 EmittedArtifact.create(
-                    path=f"models/{namespace}/{relation}.sql",
+                    path=f"models/{physical.path}.sql",
                     content=content.rstrip("\n") + "\n",
                     kind=ArtifactKind.MODEL,
                 )

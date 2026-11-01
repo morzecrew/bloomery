@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from bloomery.errors import PlannerError, guaranteed
 from bloomery.guardrails.metrics import day_columns, mart_roles
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule, mart_expr
+from bloomery.naming import qualified
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import BranchSource, Explanation, MeasureExplanation
@@ -473,13 +474,12 @@ def build(
         for spec in result.query_spec.input_spec_order.metric_specs
         if spec.element_name in metrics_by_name
     )
-    namespace, relation = naming.relation(coverage.mart.name, Layer.GOLD)
     filters = tuple(
         _human_clause(clause, resolutions)
         for clause, resolutions in zip(request.filters, coverage.filter_dimensions, strict=True)
     )
     return Explanation(
-        mart=f"{namespace}.{relation}",
+        mart=qualified(naming, coverage.mart.name, Layer.GOLD).dotted,
         grain=coverage.mart.grain,
         measures=measures,
         filters=filters,

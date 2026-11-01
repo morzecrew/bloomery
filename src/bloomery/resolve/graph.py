@@ -221,7 +221,7 @@ def mart_node(name: str) -> Node:
     """A gold relation, e.g. ``mart.order_items`` (S-0072/the-node).
 
     Named for the mart's **spec** spelling, not for the relation
-    ``ctx.naming.relation(...)`` builds from it — every other node in this
+    the naming policy builds from it — every other node in this
     graph is named the way its document names it, and a naming policy is an
     emission concern that would otherwise reach lineage ids.
 

@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
 from bloomery.errors import guaranteed
 from bloomery.ir import Layer
+from bloomery.naming import qualified
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -64,12 +65,19 @@ MANIFEST_PATH = "retrieval_manifest.json"
 #: what ``retrieval_version`` does for the authored side.
 MANIFEST_VERSION = 1
 
+#: The version of a manifest whose relation names a catalog (S-0025/D-23). A
+#: reader of version 1 knows ``namespace``/``table`` alone, and would read the
+#: relation of that name in the default catalog, so the document says it needs
+#: more. A manifest with no catalog stays version 1, byte for byte.
+CATALOG_MANIFEST_VERSION = 2
+
 
 def _relation(relation: Mapping[str, Any], naming: NamingPolicy) -> dict[str, Any]:
     """One corpus relation, resolved through the naming policy.
 
     The logical name is kept beside the physical pair: a runtime interpolates
-    ``namespace``/``table``, and a human reading the manifest against the specs
+    ``namespace``/``table``, prefixed by ``catalog`` where the policy names one,
+    and a human reading the manifest against the specs
     needs the name the documents use. Split rather than dotted because the
     grammar promises nothing about quoting — a consumer that has to quote each
     part cannot recover them from one string.
@@ -87,8 +95,15 @@ def _relation(relation: Mapping[str, Any], naming: NamingPolicy) -> dict[str, An
         expected="one relation kind",
         by="the retrieval grammar",
     )
-    namespace, table = naming.relation(name, Layer.GOLD if kind == "mart" else Layer.SILVER)
-    resolved: dict[str, Any] = {"kind": kind, "name": name, "namespace": namespace, "table": table}
+    physical = qualified(naming, name, Layer.GOLD if kind == "mart" else Layer.SILVER)
+    resolved: dict[str, Any] = {"kind": kind, "name": name}
+
+    # Only where the policy names one, so a manifest under a two-part policy
+    # is unchanged (S-0025/D-23).
+    if physical.catalog is not None:
+        resolved["catalog"] = physical.catalog
+
+    resolved |= {"namespace": physical.namespace, "table": physical.relation}
 
     if analyser is not None:
         resolved["analyser"] = analyser
@@ -123,7 +138,9 @@ def manifest(retrieval: Mapping[str, Any], *, naming: NamingPolicy) -> dict[str,
             "vector": vector,
         }
 
-    return {"retrieval_manifest_version": MANIFEST_VERSION, "profiles": profiles}
+    cataloged = any("catalog" in profile["relation"] for profile in profiles.values())
+    version = CATALOG_MANIFEST_VERSION if cataloged else MANIFEST_VERSION
+    return {"retrieval_manifest_version": version, "profiles": profiles}
 
 
 # ....................... #

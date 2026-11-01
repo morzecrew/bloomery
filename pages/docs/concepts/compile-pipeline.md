@@ -166,7 +166,7 @@ satisfies without importing a base class.
 |---|---|---|
 | `TargetEmitter` | SQLMesh, dbt, Cube, MetricFlow manifest | SQL dialects |
 | `DialectPort` | DuckDB, Postgres, Trino rendering and physical types | targets |
-| `NamingPolicy` | logical name → physical `(namespace, relation)` | everything else — the only tenant-shaped seam in the package |
+| `NamingPolicy` | logical name → physical `(namespace, relation)`, or `(catalog, namespace, relation)` | everything else — the only tenant-shaped seam in the package |
 | `Planner` | the query-planning backend | the caller's identity, connections, execution |
 
 Target and dialect vary independently — SQLMesh-on-Trino and dbt-on-Trino share every

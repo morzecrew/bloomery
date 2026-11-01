@@ -268,6 +268,13 @@ v0.1 adapter set: SQLMesh + Cube + dbt targets; DuckDB + Postgres + Trino dialec
 
 - Paths: `src/bloomery/compile.py` `src/bloomery/dialects/duckdb.py` `src/bloomery/dialects/postgres.py` `src/bloomery/dialects/trino.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/runtime/sql_client.py` `tests/unit/test_dialects/test_duckdb.py` `tests/unit/test_dialects/test_postgres.py` `tests/unit/test_dialects/test_trino.py` `tests/unit/test_emit/test_dbt.py` `tests/unit/test_runtime/test_sql_client.py`
 
+### S-0025/D-23 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
+
+A naming policy's `relation()` may return `(catalog, namespace, relation)` as well as `(namespace, relation)`; a pair, or a `None` catalog, names the engine's default catalog. Every reference the package builds goes through `bloomery.naming.qualified`, and the catalog is rendered as a real third part on every target: the SQL table reference and the SQLMesh model name, `+database` on dbt's `models/<catalog>/` directory, `database` on a dbt source and `target_database` on a snapshot, MetricFlow's `node_relation.database`, Cube's `sql_table` and the retrieval manifest's `catalog`, which makes that manifest version 2. A model in a named catalog is written at `models/<catalog>/<namespace>/<relation>`; a dbt snapshot stays at `snapshots/<entity>_snapshot`. The dbt target refuses at compile what dbt cannot place: two relations of one name, two bronze namespaces that would share a source name, and a catalog named like a namespace of the default catalog
+
+- Paths: `src/bloomery/naming.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/steps.py` `src/bloomery/emit/retrieval.py` `tests/unit/test_naming.py` `tests/unit/test_emit/test_naming_catalog.py` `tests/execution/test_naming_catalog.py` `tests/e2e/test_naming_catalog.py`
+- Consequence: One DuckDB project can read bronze from an attached Postgres and write silver and gold to a DuckLake, built by SQLMesh and by dbt in the e2e tier. Trino, Unity, Snowflake databases and BigQuery projects get the same three-part names, though nothing here runs them against those engines. A policy that answers with a pair compiles byte for byte as before. The catalog is part of the name two composing projects must share (S-0002/D-7). A catalog written into the namespace still renders as one quoted identifier, and nothing refuses it
+
 ### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.

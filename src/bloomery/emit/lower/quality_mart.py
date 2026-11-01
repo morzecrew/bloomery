@@ -21,6 +21,7 @@ from bloomery.ir import (
     SCDKind,
 )
 from bloomery.marts import DATE_BUCKETS
+from bloomery.naming import qualified
 from bloomery.quality import (
     ENTITY_GRAIN_ROW,
     FLAGS_COLUMN,
@@ -102,27 +103,27 @@ def _quality_rows_cte(entity: EntityIR, ctx: EmitContext) -> exp.Select | exp.Un
     reject row is retained as audit history with ``resolved_at`` set, so
     excluding resolved rejects is what makes a replayed row count once.
     """
-    namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
+    physical = qualified(ctx.naming, entity.name, Layer.SILVER)
     kept = (
         exp.Select()
         .select(
             exp.alias_(exp.column(FLAGS_COLUMN), _FLAGS_ALIAS),
             exp.alias_(exp.false(), _QUARANTINED_ALIAS),
         )
-        .from_(exp.table_(relation, db=namespace))
+        .from_(physical.table())
     )
 
     if entity.quarantine is None:
         return kept
 
-    reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    reject_physical = qualified(ctx.naming, reject_relation(entity), Layer.SILVER)
     diverted = (
         exp.Select()
         .select(
             exp.alias_(exp.column("failed_rules"), _FLAGS_ALIAS),
             exp.alias_(exp.true(), _QUARANTINED_ALIAS),
         )
-        .from_(exp.table_(reject_rel, db=reject_namespace))
+        .from_(reject_physical.table())
         .where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
     )
     return exp.union(kept, diverted, distinct=False)
@@ -312,7 +313,7 @@ def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> ex
     under one column and put a second wrong number into the quarantine rate.
     """
     _side, entity, _keys = _resolved_side(check.left, ir)
-    namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
+    physical = qualified(ctx.naming, reconcile_relation(check), Layer.SILVER)
     values: list[Expression] = [
         exp.Literal.string(entity.name),
         exp.Literal.string(_mapping_identity(entity)),
@@ -331,7 +332,7 @@ def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> ex
                 for name, value in zip(_BRANCH_COLUMNS, values, strict=True)
             )
         )
-        .from_(exp.table_(relation, db=namespace))
+        .from_(physical.table())
     )
 
 

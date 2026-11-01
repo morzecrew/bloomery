@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A naming policy can name a relation's catalog.** `relation()` may return
+  `(catalog, namespace, relation)` as well as `(namespace, relation)`, and every target
+  renders the catalog as a real third part: `lake.silver.order` in the SQL and the SQLMesh
+  model name, `+database` and a source's `database` on dbt, `node_relation.database` on
+  MetricFlow, and Cube's `sql_table`. One DuckDB project can read bronze from an attached
+  Postgres and write silver and gold to a DuckLake without rewriting the emitted files,
+  and plans read the same relations. A policy that returns a pair compiles exactly as
+  before. (#389)
+
 ## [0.10.0] - 2026-10-30
 
 ### Added
