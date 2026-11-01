@@ -149,9 +149,12 @@ def test_a_quarantined_row_replays_within_the_lake(conn: duckdb.DuckDBPyConnecti
     sources["mapping_legacy"] = sources["mapping_legacy"].replace(
         anchor, "{enum_map: [PROCESSING, open, COMPLETE, closed, reversed, closed]}"
     )
+    # Bronze's window has moved past `w3`, so only the replay can admit it.
+    conn.execute("DELETE FROM pg.bronze.woo__order_lines")
     artifacts = compiled()
     _no_folded_catalog(artifacts)
     materialize(conn, artifacts)
+    assert _rows(conn, "SELECT order_id FROM lake.silver.order_line") == [("B-1",)]
     (replay,) = (a for a in artifacts if a.path.endswith("replay/order_line.sql"))
     for statement in replay_statements(replay):
         conn.execute(statement)
