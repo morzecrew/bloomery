@@ -251,6 +251,18 @@ def test_a_catalog_reaches_the_corpus_relation_only_where_the_policy_names_one()
     assert "catalog" not in manifest_payload()["profiles"]["chunk_hybrid"]["relation"]
 
 
+def test_a_manifest_naming_a_catalog_is_one_a_version_one_reader_does_not_understand() -> None:
+    """Such a reader interpolates `namespace.table`, which names the default
+    catalog's relation: the version is what tells it to stop."""
+
+    class Lake(PrefixNaming):
+        def relation(self, entity: str, layer: Layer) -> tuple[str, str, str]:  # type: ignore[override]
+            return ("lake", *super().relation(entity, layer))
+
+    assert manifest_payload(naming=Lake("acme"))["retrieval_manifest_version"] == 2
+    assert manifest_payload()["retrieval_manifest_version"] == MANIFEST_VERSION == 1
+
+
 def test_the_hybrid_side_and_the_projection_are_carried_verbatim() -> None:
     """``lexical`` and ``fusion`` stand or fall together, and ``return`` keeps
     its authored spelling — the field is ``return_`` in Python and nowhere
