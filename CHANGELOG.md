@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-01
+
 ### Added
 
 - **A naming policy can name a relation's catalog.** `relation()` may return
@@ -2842,7 +2844,8 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/morzecrew/bloomery/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/morzecrew/bloomery/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/morzecrew/bloomery/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/morzecrew/bloomery/compare/v0.7.0...v0.8.0
