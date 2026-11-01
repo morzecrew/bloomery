@@ -801,7 +801,8 @@ def _reconcile_artifacts(
 
 def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifact:
     # The date dimension is bloomery-owned, not a mart: it keeps its declared
-    # relation name; the naming policy still shapes the gold namespace.
+    # relation name; the naming policy still shapes the gold namespace and
+    # its catalog.
     physical = qualified(ctx.naming, dim.name, Layer.GOLD)._replace(relation=dim.name)
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,

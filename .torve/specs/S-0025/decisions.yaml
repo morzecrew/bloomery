@@ -351,8 +351,11 @@ decisions:
       reference and the SQLMesh model name, `+database` on dbt's `models/<catalog>/`
       directory, `database` on a dbt source and `target_database` on a snapshot,
       MetricFlow's `node_relation.database`, Cube's `sql_table` and the retrieval
-      manifest's `catalog`. A relation in a named catalog is written at
-      `models/<catalog>/<namespace>/<relation>`
+      manifest's `catalog`, which makes that manifest version 2. A model in a named
+      catalog is written at `models/<catalog>/<namespace>/<relation>`; a dbt snapshot
+      stays at `snapshots/<entity>_snapshot`. The dbt target refuses at compile what dbt
+      cannot place: two relations of one name, two bronze namespaces that would share a
+      source name, and a catalog named like a namespace of the default catalog
     paths:
       - src/bloomery/naming.py
       - src/bloomery/emit/dbt/__init__.py
@@ -367,8 +370,9 @@ decisions:
       - tests/e2e/test_naming_catalog.py
     consequence: >-
       One DuckDB project can read bronze from an attached Postgres and write silver and
-      gold to a DuckLake, and Trino, Unity, Snowflake databases and BigQuery projects can
-      read across catalogs the same way. A policy that answers with a pair compiles byte
+      gold to a DuckLake, built by SQLMesh and by dbt in the e2e tier. Trino, Unity,
+      Snowflake databases and BigQuery projects get the same three-part names, though
+      nothing here runs them against those engines. A policy that answers with a pair compiles byte
       for byte as before. The catalog is part of the name two composing projects must
       share (S-0002/D-7). A catalog written into the namespace still renders as one
       quoted identifier, and nothing refuses it

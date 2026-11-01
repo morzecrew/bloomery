@@ -54,9 +54,12 @@ class LakeNaming:
 ```
 
 Writing the catalog into the namespace instead (`"lake.silver"`) renders as one quoted
-identifier, a schema that does not exist. A relation in a named catalog is written at
-`models/<catalog>/<namespace>/<relation>`, and two projects composed under S-0002/D-7
-must agree on the catalog as on the rest of the name.
+identifier, a schema that does not exist. A model in a named catalog is written at
+`models/<catalog>/<namespace>/<relation>` (a dbt snapshot stays at
+`snapshots/<entity>_snapshot.sql`), and two projects composed under S-0002/D-7 must agree on
+the catalog as on the rest of the name. dbt refuses at compile what it cannot place: two
+relations of one name, which dbt would take for one model, two bronze namespaces that would
+share a source name, and a catalog named like a namespace of the default catalog.
 
 `steps` is a `StepRegistry` — the manifests behind whatever the project's
 `steps_version` document wires. It is a *caller-assembled* argument rather than a spec

@@ -798,7 +798,8 @@ def _project_configuration(
 
     # Same convention as the SQLMesh dim_date emission (S-0025/D-13): the
     # date dimension keeps its declared relation name; the naming policy
-    # shapes only the gold namespace. One definition, two emissions, no drift.
+    # shapes only the gold namespace and its catalog. One definition, two
+    # emissions, no drift.
     gold = qualified(naming, date_dimension.name, Layer.GOLD)
     return PydanticProjectConfiguration(
         time_spines=[
