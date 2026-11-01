@@ -13,12 +13,13 @@ import re
 
 import pytest
 import yaml
-from support.compiling import load_fixture
+from support.compiling import fixture_sources, load_fixture
 from support.execution import relation_of
 from support.planning import fixture_ir
 
-from bloomery import MetricRequest, Target, compile_project
+from bloomery import MetricRequest, Target, compile_project, load_project
 from bloomery.emit import EmittedArtifact
+from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import Layer
 from bloomery.naming import DefaultNaming
 from bloomery.planner.metricflow_planner import MetricFlowPlanner
@@ -138,3 +139,56 @@ def test_a_plan_reads_the_mart_the_models_wrote() -> None:
     assert "FROM lake.gold.mart_orders" in plan.sql
     assert plan.explanation is not None
     assert plan.explanation.mart == "lake.gold.mart_orders"
+
+
+# ....................... #
+# What dbt cannot place is refused, not emitted
+
+
+def _dbt_refusal(naming: object, fixture: str = "role_playing_dates") -> str:
+    project, catalog = load_fixture(fixture)
+    with pytest.raises(UnsupportedByTarget) as refused:
+        compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog, naming=naming)
+    return str(refused.value)
+
+
+def test_two_bronze_namespaces_that_would_share_a_dbt_source_name_are_refused() -> None:
+    """`raw` + `events` and a default-catalog `raw_events` both spell `raw_events`."""
+
+    class Spelled:
+        def relation(self, entity: str, layer: Layer) -> tuple[str | None, str, str]:
+            namespace, relation = DefaultNaming().relation(entity, layer)
+            if layer is not Layer.BRONZE:
+                return (None, namespace, relation)
+            return ("raw", "events", entity) if entity.startswith("shopify") else (None, "raw_events", entity)
+
+    project = load_project(fixture_sources("multi_source_quality"))
+    with pytest.raises(UnsupportedByTarget, match="would both be the dbt source 'raw_events'"):
+        compile_project(project, target=Target.DBT, dialect="duckdb", naming=Spelled())
+
+
+def test_two_relations_of_one_name_in_two_catalogs_are_refused() -> None:
+    class Sharded:
+        def relation(self, entity: str, layer: Layer) -> tuple[str, str, str]:
+            namespace, relation = DefaultNaming().relation(entity, layer)
+            if layer is Layer.BRONZE:
+                return ("pg", namespace, relation)
+            return ("east" if layer is Layer.SILVER else "west", namespace, "x")
+
+    message = _dbt_refusal(Sharded())
+
+    assert "models/east/silver/x.sql and models/west/gold/x.sql are both the dbt model 'x'" in message
+
+
+def test_a_catalog_named_like_a_default_namespace_is_refused() -> None:
+    """`models/gold/` would carry the catalog's `+database` over the default
+    catalog's gold models."""
+
+    class Overlapping:
+        def relation(self, entity: str, layer: Layer) -> tuple[str | None, str, str]:
+            namespace, relation = DefaultNaming().relation(entity, layer)
+            return ("gold" if layer is Layer.SILVER else None, namespace, relation)
+
+    assert "'gold' is both a catalog and a namespace of the default catalog" in _dbt_refusal(
+        Overlapping()
+    )

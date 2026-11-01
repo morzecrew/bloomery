@@ -1515,6 +1515,20 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
     if not relations_by_namespace:
         return None
 
+    claimed: dict[str, tuple[str | None, str]] = {}
+    for catalog, namespace in sorted(
+        relations_by_namespace, key=lambda key: (key[0] or "", key[1])
+    ):
+        other = claimed.setdefault(_source_name(catalog, namespace), (catalog, namespace))
+        if other != (catalog, namespace):
+            msg = (
+                f"bronze relations in {_spelled(*other)} and {_spelled(catalog, namespace)} "
+                f"would both be the dbt source {_source_name(catalog, namespace)!r}, and dbt "
+                "cannot tell two sources of one name apart (S-0025/D-23). Fix: rename the "
+                "catalog or the namespace the naming policy gives one of them"
+            )
+            raise UnsupportedByTarget(msg)
+
     document: dict[str, object] = {
         "version": 2,
         "sources": [
@@ -1704,6 +1718,13 @@ def _source_name(catalog: str | None, namespace: str) -> str:
     rather than one name dbt refuses twice (S-0025/D-23)."""
 
     return namespace if catalog is None else f"{catalog}_{namespace}"
+
+
+# ....................... #
+
+
+def _spelled(catalog: str | None, namespace: str) -> str:
+    return f"namespace {namespace!r}" + ("" if catalog is None else f" of catalog {catalog!r}")
 
 
 # ....................... #
@@ -1986,6 +2007,50 @@ _OPERATOR_CONTRACT = """\
 _DEFAULT_PROJECT = "bloomery"
 
 
+def _assert_placeable(
+    namespaces: tuple[tuple[str, ...], ...], artifacts: list[EmittedArtifact]
+) -> None:
+    """Refuse the two placements dbt cannot express (S-0025/D-23).
+
+    dbt names a model or snapshot by its file alone, across folders, so two
+    relations of one name are one resource however their namespaces or
+    catalogs differ. And `dbt_project.yml` configures a directory by its name:
+    a catalog's directory named like a namespace of the default catalog is one
+    key, whose `+database` would reach the default catalog's models too.
+    """
+    by_name: dict[str, list[str]] = {}
+    for artifact in artifacts:
+        if artifact.path.startswith(("models/", "snapshots/")) and artifact.path.endswith(".sql"):
+            stem = artifact.path.rsplit("/", 1)[-1].removesuffix(".sql")
+            by_name.setdefault(stem, []).append(artifact.path)
+    shared = {name: paths for name, paths in by_name.items() if len(paths) > 1}
+
+    if shared:
+        name, paths = min(shared.items())
+        msg = (
+            f"{' and '.join(paths)} are both the dbt model {name!r}: dbt names a model by "
+            "its file across every folder, so two relations of one name cannot both be "
+            "built, whatever namespace or catalog the naming policy gives them "
+            "(S-0025/D-23). Fix: have the naming policy give them different relation names"
+        )
+        raise UnsupportedByTarget(msg)
+
+    catalogs = {parts[0] for parts in namespaces if len(parts) == 2}
+    plain = {parts[0] for parts in namespaces if len(parts) == 1}
+
+    if overlap := sorted(catalogs & plain):
+        msg = (
+            f"{overlap[0]!r} is both a catalog and a namespace of the default catalog, so "
+            f"`models/{overlap[0]}/` would be one directory in dbt_project.yml and its "
+            "`+database` would move the default catalog's models (S-0025/D-23). Fix: give "
+            "the catalog or the namespace another name in the naming policy"
+        )
+        raise UnsupportedByTarget(msg)
+
+
+# ....................... #
+
+
 def _project_artifact(
     ctx: EmitContext, namespaces: tuple[tuple[str, ...], ...], exported: str | None = None
 ) -> EmittedArtifact:
@@ -2161,5 +2226,6 @@ class DbtEmitter:
         # SQLMesh has had since S-0034 — before that it emitted no audit
         # artifacts at all and had nothing to collide.
         assert_unique_paths(artifacts)
+        _assert_placeable(namespaces, artifacts)
 
         return tuple(sorted(artifacts, key=lambda a: a.path))
