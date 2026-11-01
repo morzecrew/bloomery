@@ -43,6 +43,7 @@ from bloomery.errors import (
 )
 from bloomery.ir import COMPUTED, Additivity, Cardinality, Layer, SqlExpr
 from bloomery.marts import DATE_BUCKETS
+from bloomery.naming import qualified
 from bloomery.planner.explain import human_predicate
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
@@ -173,8 +174,7 @@ def _did_you_mean(closest: str | None, known: list[str]) -> str:
 
 
 def _gold_relation(mart: MartIR, naming: NamingPolicy) -> str:
-    namespace, relation = naming.relation(mart.name, Layer.GOLD)
-    return f"{namespace}.{relation}"
+    return qualified(naming, mart.name, Layer.GOLD).dotted
 
 
 # ....................... #

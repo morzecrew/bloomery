@@ -24,6 +24,7 @@ from bloomery.ir import (
     ReconcileIR,
     RelationshipIR,
 )
+from bloomery.naming import qualified
 from bloomery.quality import (
     RECONCILE_SUFFIX,
     ReconcileSide,
@@ -106,8 +107,8 @@ def coverage_audit_select(
     side and not the other.
     """
     relationship = coverage_owner(check, ir)
-    to_namespace, to_relation = ctx.naming.relation(relationship.to_entity, Layer.SILVER)
-    referenced = exp.table_(to_relation, db=to_namespace, alias=_COVERAGE_TO)
+    to_physical = qualified(ctx.naming, relationship.to_entity, Layer.SILVER)
+    referenced = to_physical.table(alias=_COVERAGE_TO)
     # The dependent side is ``@this_model``: the audit is attached to that
     # entity's model, and the macro is the one reference SQLMesh *does* rewrite
     # inside an AUDIT body (D29). Naming the relation instead would resolve to
@@ -302,8 +303,8 @@ def _reconcile_side(
 ) -> tuple[exp.Select, tuple[str, ...]]:
     """One side lowered to a keyed value relation: ``(select, key columns)``."""
     side, _entity, keys = _resolved_side(text, ir)
-    namespace, relation = ctx.naming.relation(side.entity, Layer.SILVER)
-    select = exp.Select().from_(exp.table_(relation, db=namespace))
+    physical = qualified(ctx.naming, side.entity, Layer.SILVER)
+    select = exp.Select().from_(physical.table())
 
     if side.agg is None:
         return (

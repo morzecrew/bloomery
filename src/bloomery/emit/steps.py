@@ -47,6 +47,7 @@ from bloomery.emit.base import ArtifactKind, AuditBody, EmittedArtifact
 from bloomery.emit.lower import THIS_MODEL, step_output_select
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import Layer, OnFail, StepKind, carries_quality_flags
+from bloomery.naming import QualifiedName, qualified
 from bloomery.quality import is_not_null, verdict
 from bloomery.steps.splice import parameter_literal
 from bloomery.typing import render_type
@@ -148,10 +149,10 @@ def step_output_body(
 # ....................... #
 
 
-def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> tuple[str, str]:
-    """``(namespace, relation)`` for one output, under the naming policy."""
+def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> QualifiedName:
+    """The physical name of one output, under the naming policy."""
 
-    return ctx.naming.relation(_relation_name(output), Layer.SILVER)
+    return qualified(ctx.naming, _relation_name(output), Layer.SILVER)
 
 
 # ....................... #
@@ -399,9 +400,7 @@ def _with_bound_inputs(step: StepIR, body: Expression, ctx: EmitContext) -> Expr
     """
 
     bound = {
-        tuple(part.lower() for part in relation.split(".")): tuple(
-            _bound(relation, ctx).split(".", 1)
-        )
+        tuple(part.lower() for part in relation.split(".")): _bound(relation, ctx)
         for _name, relation in step.inputs
     }
     ctes = {cte.alias.lower() for cte in body.find_all(exp.CTE)}
@@ -426,9 +425,9 @@ def _with_bound_inputs(step: StepIR, body: Expression, ctx: EmitContext) -> Expr
         policy = bound.get(key)
         if policy is None or (len(key) == 1 and key[0] in ctes):
             return node
-        namespace, relation = policy
+        catalog, namespace, relation = policy
         spelled = node.copy()
-        spelled.set("catalog", None)
+        spelled.set("catalog", catalog and respelled(node, "catalog", catalog))
         spelled.set("db", respelled(node, "db", namespace))
         spelled.set("this", respelled(node, "this", relation))
         renamed[key] = relation != node.name
@@ -440,12 +439,13 @@ def _with_bound_inputs(step: StepIR, body: Expression, ctx: EmitContext) -> Expr
         key = parts(node, "catalog", "db", "table")
         if len(key) < 2 or key not in bound:  # qualified by the table alone: it still resolves
             return node
-        namespace, relation = bound[key]
+        catalog, namespace, relation = bound[key]
         spelled = node.copy()
         spelled.set("catalog", None)
         if renamed.get(key):
             spelled.set("db", None)  # through the alias the table kept
         else:
+            spelled.set("catalog", catalog and respelled(node, "catalog", catalog))
             spelled.set("db", respelled(node, "db", namespace))
             spelled.set("table", respelled(node, "table", relation))
         return spelled
@@ -486,7 +486,7 @@ def _wrapper_artifact(
     reads: tuple[str, ...] = (),
 ) -> EmittedArtifact:
     del ir
-    namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
+    physical = qualified(ctx.naming, _relation_name(output), Layer.SILVER)
     module, function = (step.entrypoint or ":").split(":", 1)
     content = _WRAPPER.render(
         fingerprint=ctx.fingerprint,
@@ -498,7 +498,7 @@ def _wrapper_artifact(
         # non-identifier output name — belt and braces, since this file writes
         # executable text (D25).
         output_name=output.name,
-        relation=_python_literal(f"{namespace}.{relation}"),
+        relation=_python_literal(physical.dotted),
         manifest=_manifest_literal(step),
         parameters=_parameters_literal(step),
         columns=_columns_literal(output, ctx),
@@ -509,12 +509,12 @@ def _wrapper_artifact(
         module=module,
         function=function,
         inputs=tuple(
-            (_python_literal(name), _python_literal(_bound(bound, ctx)))
+            (_python_literal(name), _python_literal(_bound(bound, ctx).dotted))
             for name, bound in step.inputs
         ),
     )
     return EmittedArtifact.create(
-        path=f"models/{namespace}/{relation}.py",
+        path=f"models/{physical.path}.py",
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
@@ -523,16 +523,15 @@ def _wrapper_artifact(
 # ....................... #
 
 
-def _bound(relation: str, ctx: EmitContext) -> str:
-    """An input binding as the naming policy spells it.
+def _bound(relation: str, ctx: EmitContext) -> QualifiedName:
+    """An input binding as the naming policy names it.
 
     The output side has always gone through the policy; the input side did
     not, so under a scoping policy a wrapper wrote ``acme_silver.customer``
     and read plain ``silver.customer_raw`` — two different relations, one of
     which may not exist.
     """
-    namespace, name = ctx.naming.relation(relation.rsplit(".", 1)[-1], Layer.SILVER)
-    return f"{namespace}.{name}"
+    return qualified(ctx.naming, relation.rsplit(".", 1)[-1], Layer.SILVER)
 
 
 # ....................... #
@@ -570,11 +569,11 @@ def _sql_model_artifact(
     Tier 3 output can never carry them and making them universal would change
     every step artifact for a property half the tiers cannot share (D11).
     """
-    namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
+    physical = qualified(ctx.naming, _relation_name(output), Layer.SILVER)
     body = step_output_body(step, output, ir, ctx) if step.body is not None else None
     content = envelope.render(
         fingerprint=ctx.fingerprint,
-        name=f"{namespace}.{relation}",  # constrained by RELATION_PATTERN
+        name=physical.dotted,  # constrained by RELATION_PATTERN
         kind="FULL",
         grain=", ".join(output.key),
         partitioned_by="",
@@ -583,7 +582,7 @@ def _sql_model_artifact(
         select=ctx.dialect.render(body) if body is not None else "",
     )
     return EmittedArtifact.create(
-        path=f"models/{namespace}/{relation}.sql",
+        path=f"models/{physical.path}.sql",
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
@@ -601,8 +600,7 @@ _CHILD_ALIAS = "_child"
 
 def _qualified(output: StepOutputIR, ctx: EmitContext) -> str:
     """The relation an output writes, as the naming policy spells it."""
-    namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
-    return f"{namespace}.{relation}"
+    return step_output_relation(output, ctx).dotted
 
 
 # ....................... #
@@ -618,7 +616,7 @@ def _audit_relation(output: StepOutputIR, ctx: EmitContext) -> exp.Table:
     the input side and this repeated on the audit side.
     """
 
-    return exp.to_table(_qualified(output, ctx))
+    return step_output_relation(output, ctx).table()
 
 
 # ....................... #
@@ -882,7 +880,7 @@ def step_artifacts(
             # read — otherwise `context.table(...)` has nothing to resolve.
             reads = tuple(
                 sorted(
-                    {_bound(relation, ctx) for _name, relation in step.inputs}
+                    {_bound(relation, ctx).dotted for _name, relation in step.inputs}
                     | {
                         _qualified(by_name[target], ctx)
                         for _column, target in output.references

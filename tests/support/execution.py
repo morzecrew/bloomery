@@ -49,10 +49,11 @@ def warehouse(*schemas: str, database: str = ":memory:") -> duckdb.DuckDBPyConne
     return connection
 
 
-def relation_of(artifact: EmittedArtifact) -> tuple[str, str]:
-    """``(namespace, relation)`` for a model artifact, read off its path."""
+def relation_of(artifact: EmittedArtifact) -> tuple[str, ...]:
+    """``(namespace, relation)`` for a model artifact, read off its path, or
+    ``(catalog, namespace, relation)`` for one a policy puts in a catalog."""
     path = PurePosixPath(artifact.path)
-    return (path.parent.name, path.stem)
+    return (*path.parent.parts[1:], path.stem)
 
 
 def _referenced(select: str, known: frozenset[str]) -> frozenset[str]:
@@ -65,7 +66,7 @@ def _referenced(select: str, known: frozenset[str]) -> frozenset[str]:
     """
     tree = sqlglot.parse_one(select, dialect="duckdb")
     names = {
-        f"{table.args['db'].name}.{table.this.name}"
+        ".".join(part.name for part in table.parts)
         for table in tree.find_all(exp.Table)
         if table.args.get("db") is not None and isinstance(table.this, exp.Identifier)
     }
@@ -134,11 +135,12 @@ def _apply(conn: duckdb.DuckDBPyConnection, artifact: EmittedArtifact, name: str
     declared key, which is what makes a re-delivered source row land on the
     **same** reject row rather than minting a new one (S-0033/D-21).
     """
-    namespace, relation = name.split(".", 1)
+    *catalog, namespace, relation = name.split(".")
     select = extract_select(artifact.content)
     exists = conn.execute(
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
-        [namespace, relation],
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_catalog = "
+        "COALESCE(?, current_database()) AND table_schema = ? AND table_name = ?",
+        [catalog[0] if catalog else None, namespace, relation],
     ).fetchone()
     match = _UNIQUE_KEY.search(artifact.content)
     if not exists or not exists[0]:

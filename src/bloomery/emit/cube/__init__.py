@@ -1,8 +1,8 @@
 """The Cube emitter (S-0025/cube-emitter-semantic) — the semantic target.
 
 One ``model/cubes/<mart>.yml`` per mart (``sql_table`` from
-``NamingPolicy.relation(mart, Layer.GOLD)`` — the same pair the SQLMesh mart
-build uses, so the cube and the built table cannot disagree) plus one
+``NamingPolicy.relation(mart, Layer.GOLD)``, catalog included — the same name
+the SQLMesh mart build uses, so the cube and the built table cannot disagree) plus one
 ``model/views/<mart>_view.yml`` exposing the mart's members (S-0025 (§10) → D17:
 one view per **mart**, and not per metric-grain group — two marts may share
 a grain, and merging them would need a ``join_path`` between cubes that
@@ -94,6 +94,7 @@ from bloomery.ir import (
     mart_expr,
 )
 from bloomery.ir.nodes import with_imported
+from bloomery.naming import qualified
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -573,12 +574,12 @@ def _pre_aggregations(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) ->
 def _cube_artifact(
     mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR], ctx: EmitContext
 ) -> EmittedArtifact:
-    namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    physical = qualified(ctx.naming, mart.name, Layer.GOLD)
     cube: dict[str, object] = {
         "name": mart.name,
         # Cube's display name for the cube (S-0094/D-12), present only when authored.
         **_annotations(None, mart.label),
-        "sql_table": f"{namespace}.{relation}",
+        "sql_table": physical.dotted,
         "dimensions": _dimensions(mart, ir),
         "measures": _measures(mart, ir, owners),
     }

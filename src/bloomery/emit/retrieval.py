@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
 from bloomery.errors import guaranteed
 from bloomery.ir import Layer
+from bloomery.naming import qualified
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -87,8 +88,15 @@ def _relation(relation: Mapping[str, Any], naming: NamingPolicy) -> dict[str, An
         expected="one relation kind",
         by="the retrieval grammar",
     )
-    namespace, table = naming.relation(name, Layer.GOLD if kind == "mart" else Layer.SILVER)
-    resolved: dict[str, Any] = {"kind": kind, "name": name, "namespace": namespace, "table": table}
+    physical = qualified(naming, name, Layer.GOLD if kind == "mart" else Layer.SILVER)
+    resolved: dict[str, Any] = {"kind": kind, "name": name}
+
+    # Only where the policy names one, so a manifest under a two-part policy
+    # is unchanged (S-0025/D-23).
+    if physical.catalog is not None:
+        resolved["catalog"] = physical.catalog
+
+    resolved |= {"namespace": physical.namespace, "table": physical.relation}
 
     if analyser is not None:
         resolved["analyser"] = analyser

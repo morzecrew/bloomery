@@ -9,8 +9,9 @@ Deterministic choices pinned here (S-0030 R1; each is golden/unit-tested):
 - One mart = exactly one semantic model, and never a semantic model for a
   non-mart entity — that would reintroduce the query-time joins the mart
   design exists to prevent (S-0030/D-3). ``node_relation`` comes from
-  ``NamingPolicy.relation(mart, Layer.GOLD)`` — the same pair the SQLMesh
-  mart emission uses, so the manifest and the built table cannot disagree.
+  ``NamingPolicy.relation(mart, Layer.GOLD)``, its catalog as ``database`` —
+  the same name the SQLMesh mart emission uses, so the manifest and the built
+  table cannot disagree.
 - A single-column base key emits a PRIMARY entity with that column as
   ``expr``; a composite key sets ``primary_entity`` on the model instead
   (MetricFlow accepts a model whose primary entity is name-only — verified
@@ -141,6 +142,7 @@ from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.guardrails.metrics import day_columns
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule, mart_expr
 from bloomery.ir.nodes import with_imported
+from bloomery.naming import qualified
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -490,7 +492,7 @@ def _semantic_model(
     naming: NamingPolicy,
 ) -> PydanticSemanticModel:
     base = next((entity for entity in ir.entities if entity.name == mart.base), None)
-    namespace, relation = naming.relation(mart.name, Layer.GOLD)
+    physical = qualified(naming, mart.name, Layer.GOLD)
     entities, primary_entity = _entities(
         mart, base, {entity.name: entity.label for entity in with_imported(ir).entities}
     )
@@ -499,7 +501,9 @@ def _semantic_model(
     )
     return PydanticSemanticModel(
         name=mart.name,
-        node_relation=PydanticNodeRelation(schema_name=namespace, alias=relation),
+        node_relation=PydanticNodeRelation(
+            database=physical.catalog, schema_name=physical.namespace, alias=physical.relation
+        ),
         primary_entity=primary_entity,
         entities=entities,
         dimensions=_dimensions(mart, entity_names, descriptions),
@@ -795,12 +799,12 @@ def _project_configuration(
     # Same convention as the SQLMesh dim_date emission (S-0025/D-13): the
     # date dimension keeps its declared relation name; the naming policy
     # shapes only the gold namespace. One definition, two emissions, no drift.
-    namespace, _mart_relation = naming.relation(date_dimension.name, Layer.GOLD)
+    gold = qualified(naming, date_dimension.name, Layer.GOLD)
     return PydanticProjectConfiguration(
         time_spines=[
             PydanticTimeSpine(
                 node_relation=PydanticNodeRelation(
-                    schema_name=namespace, alias=date_dimension.name
+                    database=gold.catalog, schema_name=gold.namespace, alias=date_dimension.name
                 ),
                 primary_column=PydanticTimeSpinePrimaryColumn(
                     name=f"date_{date_dimension.grain}",

@@ -682,6 +682,27 @@ def test_a_tier_two_body_reads_its_bound_input_through_the_naming_policy(target:
     assert "FROM silver.stock_snapshot" not in query
 
 
+@pytest.mark.parametrize("target", ["sqlmesh", "dbt"])
+def test_a_tier_two_body_reads_its_bound_input_in_the_policy_s_catalog(target: str) -> None:
+    """#389: a policy that names a catalog reaches the input the body reads, a
+    column qualified by the whole name included, as a real third part."""
+    from bloomery.naming import DefaultNaming, Layer
+
+    class Lake(DefaultNaming):
+        def relation(self, entity: str, layer: Layer) -> tuple[str, str, str]:  # type: ignore[override]
+            return ("lake", *super().relation(entity, layer))
+
+    query = _scoped_tier_two(
+        target,
+        "SELECT silver.stock_snapshot.k FROM silver.stock_snapshot WHERE silver.stock_snapshot.k > ''",
+        naming=Lake(),
+    )
+
+    assert "FROM lake.silver.stock_snapshot" in query
+    assert "lake.silver.stock_snapshot.k" in query
+    assert '"lake.silver"' not in query
+
+
 def test_a_table_the_wiring_does_not_bind_is_left_as_written() -> None:
     """Only a bound input is the policy's to spell: the body names anything
     else on its own authority, as dbt's references leave a table they do not

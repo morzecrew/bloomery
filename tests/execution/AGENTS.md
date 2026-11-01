@@ -48,6 +48,13 @@ Mart-level fan-out guard runs at compile time (_bloomery-changes.md D2, S-0027):
 
 - Paths: `src/bloomery/emit/lower/marts.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/ir/nodes.py` `src/bloomery/resolve/build.py` `src/bloomery/spec/catalog.py` `src/bloomery/spec/metrics.py` `tests/execution/test_marts.py` `tests/fixtures/ecom_basic/catalog.yaml` `tests/golden/schema/catalog.json` `tests/unit/test_emit/test_sqlmesh.py` `tests/unit/test_fixtures.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_spec/test_metrics.py`
 
+### S-0025/D-23 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
+
+A naming policy's `relation()` may return `(catalog, namespace, relation)` as well as `(namespace, relation)`; a pair, or a `None` catalog, names the engine's default catalog. Every reference the package builds goes through `bloomery.naming.qualified`, and the catalog is rendered as a real third part on every target: the SQL table reference and the SQLMesh model name, `+database` on dbt's `models/<catalog>/` directory, `database` on a dbt source and `target_database` on a snapshot, MetricFlow's `node_relation.database`, Cube's `sql_table` and the retrieval manifest's `catalog`. A relation in a named catalog is written at `models/<catalog>/<namespace>/<relation>`
+
+- Paths: `src/bloomery/naming.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/steps.py` `src/bloomery/emit/retrieval.py` `tests/unit/test_naming.py` `tests/unit/test_emit/test_naming_catalog.py` `tests/execution/test_naming_catalog.py` `tests/e2e/test_naming_catalog.py`
+- Consequence: One DuckDB project can read bronze from an attached Postgres and write silver and gold to a DuckLake, and Trino, Unity, Snowflake databases and BigQuery projects can read across catalogs the same way. A policy that answers with a pair compiles byte for byte as before. The catalog is part of the name two composing projects must share (S-0002/D-7). A catalog written into the namespace still renders as one quoted identifier, and nothing refuses it
+
 ### S-0026/D-12 — `ASSUMED` (Testing strategy and fixture corpus)
 
 The corpus grows to fourteen fixtures (D7): `role_playing_dates`, `semi_additive_inventory` (the former `semi_additive`, renamed and extended), `non_additive_aov`, and `multi_mart_refusal` join the spec §7.7 set; `fanout_trap` now proves the compile-time `GrainViolation` (S-0023) and keeps its execution-level wrong-sum proof.

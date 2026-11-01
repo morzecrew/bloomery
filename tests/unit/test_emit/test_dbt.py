@@ -44,7 +44,7 @@ from bloomery.ir import (
     StepIR,
     StepKind,
 )
-from bloomery.naming import DefaultNaming, PrefixNaming
+from bloomery.naming import DefaultNaming, PrefixNaming, QualifiedName
 from bloomery.spec.quality import RETENTION_PATTERN
 from bloomery.typing import DecimalType, IntType, LogicalType, StringType
 from support.compiling import (
@@ -494,8 +494,8 @@ def test_a_merged_entity_declares_every_source(  # D20, whole
     the day the refusal lifted, both relations had to resolve."""
     merged = replace(_entity(), sources=(_SOURCE, replace(_SOURCE, relation="src_b")))
     references = _reference_map(ProjectIR(entities=(merged,)), _ctx())
-    assert ("bronze", "src") in references
-    assert ("bronze", "src_b") in references
+    assert QualifiedName(None, "bronze", "src") in references
+    assert QualifiedName(None, "bronze", "src_b") in references
 
 
 def test_scaffold_and_sources_artifacts() -> None:

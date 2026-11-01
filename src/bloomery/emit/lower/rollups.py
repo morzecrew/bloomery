@@ -28,6 +28,7 @@ from sqlglot import exp
 
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import COMPUTED, Layer, mart_expr
+from bloomery.naming import qualified
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -122,7 +123,7 @@ def rollup_select(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> exp.Sele
     each other.
     """
 
-    namespace, relation = ctx.naming.relation(rollup.of, Layer.GOLD)
+    physical = qualified(ctx.naming, rollup.of, Layer.GOLD)
     kept = [exp.column(column) for column in rollup.keep]
     # A rollup's `of:` is a mart of its own document (S-0065/D-10); an IR
     # assembled without it reads the expression as written.
@@ -137,6 +138,6 @@ def rollup_select(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> exp.Sele
                 for metric in rollup_measures(rollup, ir)
             ],
         )
-        .from_(exp.table_(relation, db=namespace))
+        .from_(physical.table())
         .group_by(*kept)
     )

@@ -341,3 +341,42 @@ decisions:
       in its docstring, so the bound and the form can only move together. `not_null`
       is unaffected: it takes no arguments and stays a bare name on every version.
     paths: [src/bloomery/emit/dbt/__init__.py, tests/unit/test_emit/test_dbt.py]
+  - id: D-23
+    grade: ASSUMED
+    text: >-
+      A naming policy's `relation()` may return `(catalog, namespace, relation)` as well as
+      `(namespace, relation)`; a pair, or a `None` catalog, names the engine's default
+      catalog. Every reference the package builds goes through `bloomery.naming.qualified`,
+      and the catalog is rendered as a real third part on every target: the SQL table
+      reference and the SQLMesh model name, `+database` on dbt's `models/<catalog>/`
+      directory, `database` on a dbt source and `target_database` on a snapshot,
+      MetricFlow's `node_relation.database`, Cube's `sql_table` and the retrieval
+      manifest's `catalog`. A relation in a named catalog is written at
+      `models/<catalog>/<namespace>/<relation>`
+    paths:
+      - src/bloomery/naming.py
+      - src/bloomery/emit/dbt/__init__.py
+      - src/bloomery/emit/sqlmesh/__init__.py
+      - src/bloomery/emit/metricflow/__init__.py
+      - src/bloomery/emit/cube/__init__.py
+      - src/bloomery/emit/steps.py
+      - src/bloomery/emit/retrieval.py
+      - tests/unit/test_naming.py
+      - tests/unit/test_emit/test_naming_catalog.py
+      - tests/execution/test_naming_catalog.py
+      - tests/e2e/test_naming_catalog.py
+    consequence: >-
+      One DuckDB project can read bronze from an attached Postgres and write silver and
+      gold to a DuckLake, and Trino, Unity, Snowflake databases and BigQuery projects can
+      read across catalogs the same way. A policy that answers with a pair compiles byte
+      for byte as before. The catalog is part of the name two composing projects must
+      share (S-0002/D-7). A catalog written into the namespace still renders as one
+      quoted identifier, and nothing refuses it
+    rationale: >-
+      #389. A 3-tuple rather than a separate `catalog(layer)` method: one call answers the
+      whole name, so no call site can build a reference and miss its catalog, and the
+      catalog can follow the relation where one layer spans several, bronze sources in two
+      attached databases among them. A per-layer policy is still one line. A dbt source is
+      named `<catalog>_<namespace>` where a catalog is named, so one namespace in two
+      catalogs is two sources rather than one name dbt refuses
+    cites: [D-1, S-0002/D-7]

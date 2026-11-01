@@ -41,13 +41,16 @@ identical, which is the tighter statement of "no lowering is duplicated".
 Artifacts:
 
 - ``dbt_project.yml`` — the scaffold, plus one ``+schema`` per model
-  directory so each relation materializes where the naming policy put it.
+  directory so each relation materializes where the naming policy put it, and
+  one ``+database`` per catalog directory where the policy names a catalog
+  (``models/<catalog>/<namespace>/``, S-0025/D-23).
 - ``macros/generate_schema_name.sql`` — the override making ``+schema`` mean
   the namespace verbatim rather than dbt's default ``<target>_<custom>``
   (S-0025/D-20). Without it ``ref()`` really would cost the naming port its
   ownership of namespaces, which is the objection S-0026/D-22 raised.
 - ``models/sources.yml`` — every bronze relation the entities read, grouped
-  by bronze namespace under the naming policy. Sources do not pass through
+  by bronze namespace under the naming policy, with its ``database`` where the
+  policy names a catalog. Sources do not pass through
   ``generate_schema_name``, so their namespace was always the policy's.
 - ``models/<silver_ns>/<entity>.sql`` per SCD type 1 entity, with a
   ``{{ config(...) }}`` header. Materialization maps honestly: ``full`` →
@@ -189,6 +192,7 @@ from bloomery.ir import (
     UpstreamIR,
 )
 from bloomery.ir.nodes import with_imported
+from bloomery.naming import QualifiedName, qualified
 from bloomery.quality import RunContext, is_quality_mart
 from bloomery.typing import IntType
 
@@ -451,7 +455,7 @@ _THIS = "{{ this }}"
 
 
 def _reject_artifacts(
-    entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    entity: EntityIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> tuple[EmittedArtifact, EmittedArtifact]:
     """The ``<entity>__reject`` model and its replay macro (S-0033/quarantine-one-reject-table-per-entity,
     S-0060/the-reject-table, S-0060/replay-as-a-run-operation-macro).
@@ -473,7 +477,7 @@ def _reject_artifacts(
     caller routing the stream must be able to tell those apart without reading a
     path (D5).
     """
-    namespace, relation = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    physical = qualified(ctx.naming, reject_relation(entity), Layer.SILVER)
     model = _REJECT_ENVELOPE.render(
         fingerprint=ctx.fingerprint,
         config_line=(
@@ -491,7 +495,7 @@ def _reject_artifacts(
     macro = f"replay_{entity.name}"
     return (
         EmittedArtifact.create(
-            path=f"models/{namespace}/{relation}.sql",
+            path=f"models/{physical.path}.sql",
             content=model.rstrip("\n") + "\n",
             kind=ArtifactKind.MODEL,
         ),
@@ -542,7 +546,7 @@ def _reject_artifacts(
 
 
 def _replay_columns_guard(
-    entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    entity: EntityIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> str:
     """Refuse before the first statement when the entity or its reject table
     lacks a column the statements write (S-0086/D-3).
@@ -557,19 +561,21 @@ def _replay_columns_guard(
     relation not built yet, so the comparison lowers both sides and an unbuilt
     relation refuses with every column it would need.
     """
-    entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
-    reject = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    entity_relation = qualified(ctx.naming, entity.name, Layer.SILVER)
+    reject = qualified(ctx.naming, reject_relation(entity), Layer.SILVER)
     # An incremental model adds no column on a plain run, so either relation
     # rebuilds with `--full-refresh` unless it is a table already.
     entity_refresh = "" if entity.materialization is Materialization.FULL else "--full-refresh "
     rebuilds = {
-        entity_relation: f"dbt run {entity_refresh}--select {_entity_model(entity, entity_relation[1])}",
-        reject: f"dbt run --full-refresh --select {reject[1]}",
+        entity_relation: (
+            f"dbt run {entity_refresh}--select {_entity_model(entity, entity_relation.relation)}"
+        ),
+        reject: f"dbt run --full-refresh --select {reject.relation}",
     }
-    written: dict[tuple[str, str], list[str]] = {}
+    written: dict[QualifiedName, list[str]] = {}
 
     for statement in replay_statements(entity, ctx):
-        key = (statement.this.text("db"), statement.this.name)
+        key = _named(statement.this)
         if key not in rebuilds:
             continue
         columns = written.setdefault(key, [])
@@ -590,7 +596,7 @@ def _replay_columns_guard(
             f"| map('lower') | list) | list %}}\n"
             f"  {{% if missing %}}\n"
             f"    {{{{ exceptions.raise_compiler_error("
-            f'"replay_{entity.name} writes " ~ missing | join(", ") ~ " into {key[0]}.{key[1]}, '
+            f'"replay_{entity.name} writes " ~ missing | join(", ") ~ " into {key.dotted}, '
             f"which does not have them; rebuild it from the checkout this macro was compiled "
             f'from with `{rebuilds[key]}` before replaying") }}}}\n'
             f"  {{% endif %}}"
@@ -613,7 +619,7 @@ def _replay_columns_guard(
     return "\n".join(lines)
 
 
-def _replay_body(entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]) -> str:
+def _replay_body(entity: EntityIR, ctx: EmitContext, references: dict[QualifiedName, str]) -> str:
     """Each replay statement captured into a variable, then run.
 
     **A `{% set %}…{% endset %}` block rather than a quoted string**, and this
@@ -647,7 +653,7 @@ def _reconcile_artifacts(
     check: ReconcileIR,
     ir: ProjectIR,
     ctx: EmitContext,
-    references: dict[tuple[str, str], str],
+    references: dict[QualifiedName, str],
 ) -> tuple[EmittedArtifact, EmittedArtifact]:
     """One reconcile check → a comparison model and a singular test over it
     (S-0033/spec-schema, S-0060/the-reconcile-model-and-its-audit).
@@ -668,10 +674,10 @@ def _reconcile_artifacts(
     The model is ``materialized='table'``, SQLMesh's ``FULL`` said in dbt's
     vocabulary. A comparison is recomputed whole or it is stale.
     """
-    namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
+    physical = qualified(ctx.naming, reconcile_relation(check), Layer.SILVER)
     return (
         _model_artifact(
-            path=f"models/{namespace}/{relation}.sql",
+            path=f"models/{physical.path}.sql",
             # `FULL` takes no unique key, and the comparison's grain reaches
             # the artifact through the SELECT rather than through the config —
             # SQLMesh states it in the model's `grain` and dbt has nowhere to
@@ -684,7 +690,7 @@ def _reconcile_artifacts(
         _singular_test(
             name=f"{check.name}_reconcile",
             select=_render(
-                reconcile_audit_select(relation=references[(namespace, relation)]),
+                reconcile_audit_select(relation=references[physical]),
                 references,
                 ctx,
             ),
@@ -698,7 +704,7 @@ def _reconcile_artifacts(
 
 
 def _step_artifacts(
-    ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    ir: ProjectIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> list[EmittedArtifact]:
     """Tier 2 step outputs as dbt models (S-0034/D-52).
 
@@ -718,10 +724,10 @@ def _step_artifacts(
         if step.kind is not StepKind.SQL_MODEL:
             continue
         for output in step.outputs:
-            namespace, relation = step_output_relation(output, ctx)
+            physical = step_output_relation(output, ctx)
             artifacts.append(
                 _model_artifact(
-                    path=f"models/{namespace}/{relation}.sql",
+                    path=f"models/{physical.path}.sql",
                     config_line=_config_line(Materialization.FULL, output.key),
                     select=_render(step_output_body(step, output, ir, ctx), references, ctx),
                     ctx=ctx,
@@ -749,7 +755,7 @@ def _model_artifact(
 
 
 def _snapshot_artifact(
-    entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    entity: EntityIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> EmittedArtifact:
     if len(entity.key) != 1:
         msg = (
@@ -760,7 +766,7 @@ def _snapshot_artifact(
         )
         raise UnsupportedByTarget(msg)
 
-    namespace, _relation = ctx.naming.relation(entity.name, Layer.SILVER)
+    physical = qualified(ctx.naming, entity.name, Layer.SILVER)
     # `snapshot_meta_column_names` renames dbt's `dbt_valid_from`/`dbt_valid_to`
     # to the interval names the IR owns (S-0040/phase-2-the-as-of-join, S-0040/D-7). Without it the two
     # targets name the same interval differently — which is precisely why no
@@ -769,7 +775,8 @@ def _snapshot_artifact(
     # and not on dbt's. The other meta columns keep their dbt names: nothing
     # bloomery emits reads them.
     config_line = (
-        f"{{{{ config(target_schema='{namespace}', unique_key='{entity.key[0]}', "
+        f"{{{{ config({_target_database(physical)}target_schema='{physical.namespace}', "
+        f"unique_key='{entity.key[0]}', "
         "strategy='check', check_cols='all', "
         f"snapshot_meta_column_names={{'dbt_valid_from': '{VALID_FROM}', "
         f"'dbt_valid_to': '{VALID_TO}'}}) }}}}"
@@ -792,11 +799,11 @@ def _snapshot_artifact(
 
 
 def _dim_date_artifact(
-    dim: DateDimensionIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    dim: DateDimensionIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> EmittedArtifact:
-    namespace, _mart_relation = ctx.naming.relation(dim.name, Layer.GOLD)
+    physical = qualified(ctx.naming, dim.name, Layer.GOLD)._replace(relation=dim.name)
     return _model_artifact(
-        path=f"models/{namespace}/{dim.name}.sql",
+        path=f"models/{physical.path}.sql",
         config_line="{{ config(materialized='table') }}",
         select=_render(dim_date_select(dim), references, ctx),
         ctx=ctx,
@@ -822,9 +829,9 @@ _DBT_RUN = RunContext(
 
 
 def _mart_artifact(
-    mart: MartIR, ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    mart: MartIR, ir: ProjectIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> EmittedArtifact:
-    namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    physical = qualified(ctx.naming, mart.name, Layer.GOLD)
 
     if is_quality_mart(mart):
         # Not a mart over a base entity: its rows are rule evaluations, so the
@@ -835,7 +842,7 @@ def _mart_artifact(
         # deleted rather than narrowed (D7) — narrowing it is the right change
         # only in the world where this RFC did not ship.
         return _model_artifact(
-            path=f"models/{namespace}/{relation}.sql",
+            path=f"models/{physical.path}.sql",
             config_line=_config_line(Materialization.FULL, ()),
             select=_render(quality_mart_select(ir, ctx, _DBT_RUN), references, ctx),
             ctx=ctx,
@@ -847,7 +854,7 @@ def _mart_artifact(
         by="the mart-base guardrail (S-0027)",
     )
     return _model_artifact(
-        path=f"models/{namespace}/{relation}.sql",
+        path=f"models/{physical.path}.sql",
         config_line=_config_line(mart.materialization, base.key),
         select=_render(mart_select(mart, ctx), references, ctx),
         ctx=ctx,
@@ -858,7 +865,7 @@ def _mart_artifact(
 
 
 def _rollup_artifact(
-    rollup: RollupIR, ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    rollup: RollupIR, ir: ProjectIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> EmittedArtifact:
     """One gold model per rollup (S-0065/targets, S-0065/phasing (P-2)).
 
@@ -869,10 +876,10 @@ def _rollup_artifact(
     by construction.
     """
 
-    namespace, relation = ctx.naming.relation(rollup.name, Layer.GOLD)
+    physical = qualified(ctx.naming, rollup.name, Layer.GOLD)
 
     return _model_artifact(
-        path=f"models/{namespace}/{relation}.sql",
+        path=f"models/{physical.path}.sql",
         config_line=_config_line(rollup.materialization, rollup.keep),
         select=_render(rollup_select(rollup, ir, ctx), references, ctx),
         ctx=ctx,
@@ -964,7 +971,7 @@ def _entity_tests(
 
 
 def _entity_test_artifacts(
-    entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    entity: EntityIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> list[EmittedArtifact]:
     """The checks over one silver model that no ``schema.yml`` entry can carry.
 
@@ -1008,7 +1015,7 @@ def _entity_test_artifacts(
     ``quality_precedence`` alone now emits three of these, and
     ``dirty_corpus`` a fourth.
     """
-    relation = references[ctx.naming.relation(entity.name, Layer.SILVER)]
+    relation = references[qualified(ctx.naming, entity.name, Layer.SILVER)]
     artifacts: list[EmittedArtifact] = []
 
     if collision_audit(entity):
@@ -1081,7 +1088,7 @@ def _entity_test_artifacts(
 
 
 def _mart_test_artifacts(
-    mart: MartIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    mart: MartIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> list[EmittedArtifact]:
     """One singular test per mart assertion (S-0033/D-89).
 
@@ -1090,7 +1097,7 @@ def _mart_test_artifacts(
     per-row predicate that expresses "this month's total is out of bounds" and
     therefore no ``schema.yml`` entry that could have carried it.
     """
-    relation = references[ctx.naming.relation(mart.name, Layer.GOLD)]
+    relation = references[qualified(ctx.naming, mart.name, Layer.GOLD)]
     return [
         _singular_test(
             name=mart_assert_name(mart, clause),
@@ -1106,7 +1113,7 @@ def _mart_test_artifacts(
 
 
 def _coverage_test_artifacts(
-    ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    ir: ProjectIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> list[EmittedArtifact]:
     """One singular test per coverage check (S-0033/D-90).
 
@@ -1122,7 +1129,7 @@ def _coverage_test_artifacts(
 
     for check in ir.coverage:
         dependent = coverage_owner(check, ir).from_entity
-        relation = references[ctx.naming.relation(dependent, Layer.SILVER)]
+        relation = references[qualified(ctx.naming, dependent, Layer.SILVER)]
         artifacts.append(
             _singular_test(
                 name=coverage_audit_name(check),
@@ -1141,7 +1148,7 @@ def _coverage_test_artifacts(
 
 
 def _step_test_artifacts(
-    ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+    ir: ProjectIR, ctx: EmitContext, references: dict[QualifiedName, str]
 ) -> list[EmittedArtifact]:
     """Step-output audits as singular tests (S-0034/D-39, S-0034/D-40).
 
@@ -1276,7 +1283,7 @@ def _mart_metadata_entry(
     mart and rollups — which have no authored node — never have any.
     """
 
-    _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    relation = qualified(ctx.naming, mart.name, Layer.GOLD).relation
     entry: dict[str, object] = {"name": relation}
 
     if mart.owner is not None:
@@ -1323,7 +1330,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         if entity.scd is SCDKind.TYPE2:
             snapshots.append(_schema_entry(entity, f"{entity.name}_snapshot", ctx))
         else:
-            _namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
+            relation = qualified(ctx.naming, entity.name, Layer.SILVER).relation
             models.append(_schema_entry(entity, relation, ctx))
 
     # A granted entity's reject relation is granted with it. The reject model
@@ -1339,7 +1346,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     # nobody queries directly as noise.
     models.extend(
         {
-            "name": ctx.naming.relation(reject_relation(entity), Layer.SILVER)[1],
+            "name": qualified(ctx.naming, reject_relation(entity), Layer.SILVER).relation,
             "config": {"grants": {"select": list(entity.grants.select)}},
         }
         for entity in ir.entities
@@ -1364,7 +1371,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     # its parent's, so it gets its own entry when it declares one.
     models.extend(
         {
-            "name": ctx.naming.relation(rollup.name, Layer.GOLD)[1],
+            "name": qualified(ctx.naming, rollup.name, Layer.GOLD).relation,
             "config": {"grants": {"select": list(rollup.grants.select)}},
         }
         for rollup in ir.rollups
@@ -1382,10 +1389,10 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         public: set[str] = set()
         for entity in ir.entities:
             if entity.name in ir.exports.entities and entity.scd is not SCDKind.TYPE2:
-                public.add(ctx.naming.relation(entity.name, Layer.SILVER)[1])
+                public.add(qualified(ctx.naming, entity.name, Layer.SILVER).relation)
         for mart in ir.marts:
             if mart.name in ir.exports.marts:
-                public.add(ctx.naming.relation(mart.name, Layer.GOLD)[1])
+                public.add(qualified(ctx.naming, mart.name, Layer.GOLD).relation)
         for entry in models:
             if isinstance(entry, dict) and entry.get("name") in public:
                 entry["access"] = "public"
@@ -1487,7 +1494,7 @@ def _freshness_entry(freshness: FreshnessIR | None, ctx: EmitContext) -> dict[st
 
 
 def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
-    relations_by_namespace: dict[str, dict[str, FreshnessIR | None]] = {}
+    relations_by_namespace: dict[tuple[str | None, str], dict[str, FreshnessIR | None]] = {}
 
     # One ``source()`` per mapping (S-0041/D-20): a merged entity reads every
     # relation its branches do, and a sources.yml naming only the first would
@@ -1501,9 +1508,9 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
     # sibling must not erase it, which is why this is `or` and not assignment.
     for entity in ir.entities:
         for origin in entity.sources:
-            namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
-            tables = relations_by_namespace.setdefault(namespace, {})
-            tables[relation] = tables.get(relation) or origin.freshness
+            physical = qualified(ctx.naming, origin.relation, Layer.BRONZE)
+            tables = relations_by_namespace.setdefault(physical[:2], {})
+            tables[physical.relation] = tables.get(physical.relation) or origin.freshness
 
     if not relations_by_namespace:
         return None
@@ -1512,14 +1519,17 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
         "version": 2,
         "sources": [
             {
-                "name": namespace,
+                "name": _source_name(catalog, namespace),
+                **({"database": catalog} if catalog is not None else {}),
                 "schema": namespace,
                 "tables": [
                     {"name": table} | _freshness_entry(tables[table], ctx)
                     for table in sorted(tables)
                 ],
             }
-            for namespace, tables in sorted(relations_by_namespace.items())
+            for (catalog, namespace), tables in sorted(
+                relations_by_namespace.items(), key=lambda item: (item[0][0] or "", item[0][1])
+            )
         ],
     }
     return EmittedArtifact.create(
@@ -1566,14 +1576,14 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
     references: dict[str, str] = {}
 
     for mart in ir.marts:
-        _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+        relation = qualified(ctx.naming, mart.name, Layer.GOLD).relation
         references[mart.name] = f"ref('{relation}')"
         for measure in mart.measures:
             serving.setdefault(measure, []).append(references[mart.name])
 
     for up in ir.upstream:  # sorted by alias on ProjectIR
         for mart in up.marts:
-            _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+            relation = qualified(ctx.naming, mart.name, Layer.GOLD).relation
             references[mart.name] = f"ref('{_upstream_project(up)}', '{relation}')"
             for measure in mart.measures:
                 serving.setdefault(measure, []).append(references[mart.name])
@@ -1677,7 +1687,39 @@ def _upstream_project(up: UpstreamIR) -> str:
 # ....................... #
 
 
-def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str]:
+def _named(table: Expression) -> QualifiedName:
+    """The name a lowered table reference carries, catalog and all, as the
+    reference map keys it. A statement's target may be an ``INSERT``'s column
+    list rather than a table, which names no namespace and so keys nothing."""
+
+    return QualifiedName(table.text("catalog") or None, table.text("db"), table.name)
+
+
+# ....................... #
+
+
+def _source_name(catalog: str | None, namespace: str) -> str:
+    """The dbt source that holds a bronze namespace: the namespace itself, or
+    prefixed by its catalog, so one namespace in two catalogs is two sources
+    rather than one name dbt refuses twice (S-0025/D-23)."""
+
+    return namespace if catalog is None else f"{catalog}_{namespace}"
+
+
+# ....................... #
+
+
+def _target_database(physical: QualifiedName) -> str:
+    """A snapshot's ``target_database=`` config argument, or nothing in the
+    engine's default catalog."""
+
+    return "" if physical.catalog is None else f"target_database='{physical.catalog}', "
+
+
+# ....................... #
+
+
+def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[QualifiedName, str]:
     """``(namespace, relation)`` → the dbt reference that resolves to it
     (S-0025/D-20).
 
@@ -1692,27 +1734,31 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
     keeps a CTE reference (``FROM _quality_order``, which parses as a table
     with no ``db``) from being mistaken for a model.
     """
-    references: dict[tuple[str, str], str] = {}
+    references: dict[QualifiedName, str] = {}
 
-    def add(namespace: str, relation: str, reference: str) -> None:
-        if namespace:
-            references[(namespace, relation)] = reference
+    def add(physical: QualifiedName, reference: str) -> None:
+        if physical.namespace:
+            references[physical] = reference
+
+    def ref(physical: QualifiedName) -> str:
+        return f"{{{{ ref('{physical.relation}') }}}}"
 
     for entity in ir.entities:
         for origin in entity.sources:
-            namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
-            add(namespace, relation, f"{{{{ source('{namespace}', '{relation}') }}}}")
+            physical = qualified(ctx.naming, origin.relation, Layer.BRONZE)
+            source = _source_name(physical.catalog, physical.namespace)
+            add(physical, f"{{{{ source('{source}', '{physical.relation}') }}}}")
 
     for entity in ir.entities:
-        namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
-        add(namespace, relation, f"{{{{ ref('{_entity_model(entity, relation)}') }}}}")
+        physical = qualified(ctx.naming, entity.name, Layer.SILVER)
+        add(physical, f"{{{{ ref('{_entity_model(entity, physical.relation)}') }}}}")
 
     for step in ir.steps:
         if step.kind is not StepKind.SQL_MODEL:
             continue
         for output in step.outputs:
-            namespace, relation = step_output_relation(output, ctx)
-            add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+            physical = step_output_relation(output, ctx)
+            add(physical, ref(physical))
 
     # The reject tables and reconcile models are relations like any other, and
     # the quality mart counts over both. Left out of this map they would reach
@@ -1723,24 +1769,26 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
     for entity in ir.entities:
         if entity.quarantine is None:
             continue
-        namespace, relation = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
-        add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+        add(physical := qualified(ctx.naming, reject_relation(entity), Layer.SILVER), ref(physical))
 
     for check in ir.reconcile:
-        namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
-        add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+        add(
+            physical := qualified(ctx.naming, reconcile_relation(check), Layer.SILVER),
+            ref(physical),
+        )
 
     for mart in ir.marts:
-        namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
-        add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+        add(physical := qualified(ctx.naming, mart.name, Layer.GOLD), ref(physical))
 
     for rollup in ir.rollups:
-        namespace, relation = ctx.naming.relation(rollup.name, Layer.GOLD)
-        add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+        add(physical := qualified(ctx.naming, rollup.name, Layer.GOLD), ref(physical))
 
     if ir.date_dimension is not None:
-        namespace, _relation = ctx.naming.relation(ir.date_dimension.name, Layer.GOLD)
-        add(namespace, ir.date_dimension.name, f"{{{{ ref('{ir.date_dimension.name}') }}}}")
+        name = ir.date_dimension.name
+        add(
+            physical := qualified(ctx.naming, name, Layer.GOLD)._replace(relation=name),
+            ref(physical),
+        )
 
     # An imported node's relation is the upstream's, named under the policy
     # both projects share (S-0002/D-7), and dbt's way of naming a relation
@@ -1752,12 +1800,12 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
     for up in ir.upstream:  # sorted by alias on ProjectIR
         project = _upstream_project(up)
         for entity in up.entities:
-            namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
-            model = _entity_model(entity, relation)
-            add(namespace, relation, f"{{{{ ref('{project}', '{model}') }}}}")
+            physical = qualified(ctx.naming, entity.name, Layer.SILVER)
+            model = _entity_model(entity, physical.relation)
+            add(physical, f"{{{{ ref('{project}', '{model}') }}}}")
         for mart in up.marts:
-            namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
-            add(namespace, relation, f"{{{{ ref('{project}', '{relation}') }}}}")
+            physical = qualified(ctx.naming, mart.name, Layer.GOLD)
+            add(physical, f"{{{{ ref('{project}', '{physical.relation}') }}}}")
 
     return references
 
@@ -1814,7 +1862,7 @@ def _dependencies_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact |
 # ....................... #
 
 
-def _render(node: Expression, references: dict[tuple[str, str], str], ctx: EmitContext) -> str:
+def _render(node: Expression, references: dict[QualifiedName, str], ctx: EmitContext) -> str:
     """Render one lowered SELECT with its inputs stated as dbt references.
 
     Every model body goes through here rather than through ``ctx.dialect.render``
@@ -1833,7 +1881,7 @@ def _render(node: Expression, references: dict[tuple[str, str], str], ctx: EmitC
     node = node.copy()
 
     for table in node.find_all(exp.Table):
-        reference = references.get((table.db, table.name))
+        reference = references.get(_named(table))
         if reference is None:
             continue
         # `to_identifier(..., quoted=False)` is what lets the braces survive
@@ -1939,7 +1987,7 @@ _DEFAULT_PROJECT = "bloomery"
 
 
 def _project_artifact(
-    ctx: EmitContext, namespaces: tuple[str, ...], exported: str | None = None
+    ctx: EmitContext, namespaces: tuple[tuple[str, ...], ...], exported: str | None = None
 ) -> EmittedArtifact:
     name = exported or _DEFAULT_PROJECT
     document: dict[str, object] = {
@@ -1971,7 +2019,18 @@ def _project_artifact(
         # Keyed by the project's own name, which is what dbt matches a `models:`
         # block against: keyed by anything else the block governs no model, and
         # the relation lands wherever dbt's default schema puts it.
-        document["models"] = {name: {namespace: {"+schema": namespace} for namespace in namespaces}}
+        # A relation in a named catalog lives one directory deeper,
+        # `models/<catalog>/<namespace>/`, and the catalog's directory carries
+        # `+database` the way the namespace's carries `+schema` (S-0025/D-23).
+        models: dict[str, object] = {}
+        catalogs: dict[str, dict[str, object]] = {}
+        for *catalog, namespace in namespaces:
+            if catalog:
+                tree = catalogs.setdefault(catalog[0], {"+database": catalog[0]})
+                tree[namespace] = {"+schema": namespace}
+            else:
+                models[namespace] = {"+schema": namespace}
+        document["models"] = {name: models | catalogs}
 
     return EmittedArtifact.create(
         path="dbt_project.yml",
@@ -2030,10 +2089,10 @@ class DbtEmitter:
             if entity.scd is SCDKind.TYPE2:
                 artifacts.append(_snapshot_artifact(entity, ctx, references))
                 continue
-            namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
+            physical = qualified(ctx.naming, entity.name, Layer.SILVER)
             artifacts.append(
                 _model_artifact(
-                    path=f"models/{namespace}/{relation}.sql",
+                    path=f"models/{physical.path}.sql",
                     config_line=_config_line(entity.materialization, entity.key),
                     select=_render(entity_select(entity, ctx), references, ctx),
                     ctx=ctx,
@@ -2084,7 +2143,7 @@ class DbtEmitter:
         namespaces = tuple(
             sorted(
                 {
-                    artifact.path.split("/")[1]
+                    tuple(artifact.path.split("/")[1:-1])
                     for artifact in artifacts
                     if artifact.path.startswith("models/") and artifact.path.count("/") > 1
                 }

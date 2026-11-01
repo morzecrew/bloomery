@@ -76,6 +76,13 @@ Emitter/dialect registries mirror the transform registry: immutable defaults + e
 
 - Paths: `src/bloomery/emit/dbt/__init__.py` `tests/unit/test_emit/test_dbt.py`
 
+### S-0025/D-23 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
+
+A naming policy's `relation()` may return `(catalog, namespace, relation)` as well as `(namespace, relation)`; a pair, or a `None` catalog, names the engine's default catalog. Every reference the package builds goes through `bloomery.naming.qualified`, and the catalog is rendered as a real third part on every target: the SQL table reference and the SQLMesh model name, `+database` on dbt's `models/<catalog>/` directory, `database` on a dbt source and `target_database` on a snapshot, MetricFlow's `node_relation.database`, Cube's `sql_table` and the retrieval manifest's `catalog`. A relation in a named catalog is written at `models/<catalog>/<namespace>/<relation>`
+
+- Paths: `src/bloomery/naming.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/steps.py` `src/bloomery/emit/retrieval.py` `tests/unit/test_naming.py` `tests/unit/test_emit/test_naming_catalog.py` `tests/execution/test_naming_catalog.py` `tests/e2e/test_naming_catalog.py`
+- Consequence: One DuckDB project can read bronze from an attached Postgres and write silver and gold to a DuckLake, and Trino, Unity, Snowflake databases and BigQuery projects can read across catalogs the same way. A policy that answers with a pair compiles byte for byte as before. The catalog is part of the name two composing projects must share (S-0002/D-7). A catalog written into the namespace still renders as one quoted identifier, and nothing refuses it
+
 ### S-0027/D-2 — `ASSUMED` (Marts and role-playing dimensions)
 
 Measure grain must strictly equal mart grain; coarser or finer is `GrainViolation`. Resolves D2's prose/example contradiction to the strict reading; relaxation is a future additive change.

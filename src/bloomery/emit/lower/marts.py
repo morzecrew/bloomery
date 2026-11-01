@@ -28,6 +28,7 @@ from bloomery.ir import (
     ProjectIR,
 )
 from bloomery.marts import HAS_QUALITY_FLAGS
+from bloomery.naming import qualified
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -103,15 +104,15 @@ def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
         for column in mart.columns
         if column.ref is None
     }
-    base_namespace, base_relation = ctx.naming.relation(mart.base, Layer.SILVER)
+    base_physical = qualified(ctx.naming, mart.base, Layer.SILVER)
     select = (
         exp.Select()
         .select(*[_mart_projection(mart, column) for column in mart.columns])
-        .from_(exp.table_(base_relation, db=base_namespace, alias=mart.base))
+        .from_(base_physical.table(alias=mart.base))
     )
 
     for join in mart.joins:
-        namespace, relation = ctx.naming.relation(join.entity, Layer.SILVER)
+        physical = qualified(ctx.naming, join.entity, Layer.SILVER)
         conditions: list[Expression] = [
             exp.EQ(
                 this=_owned(owners, from_column),
@@ -127,7 +128,7 @@ def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
             conditions.append(current_version(table=join.prefix))
 
         select = select.join(
-            exp.table_(relation, db=namespace, alias=join.prefix),
+            physical.table(alias=join.prefix),
             on=exp.and_(*conditions),
             join_type="LEFT",
         )
