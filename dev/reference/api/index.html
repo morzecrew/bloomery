@@ -3308,6 +3308,29 @@ the string name of a registered extension emitter; <code>dialect</code> is <code
 <code>"trino"</code>, or <code>"postgres"</code>; <code>naming</code> defaults to layer-based naming
 (<code>silver.&lt;entity&gt;</code>, <code>gold.mart_&lt;name&gt;</code>). Same specs in, byte-identical artifacts out.
 Each <code>EmittedArtifact</code> carries <code>path</code>, <code>content</code>, <code>kind</code>, and <code>checksum</code>.</p>
+<p>A <code>NamingPolicy</code> is any object with <code>relation(entity, layer)</code> returning
+<code>(namespace, relation)</code>, or <code>(catalog, namespace, relation)</code> for a relation in a catalog
+other than the engine's default. A <code>None</code> catalog means the default. The catalog is
+rendered as a real third part on every target: the SQL and the SQLMesh model name,
+dbt's <code>+database</code>, a source's <code>database</code> and a snapshot's <code>target_database</code>,
+MetricFlow's <code>node_relation.database</code>, and Cube's <code>sql_table</code>. A plan names the same
+relation when the hydrator is built under the same policy. To read bronze from an
+attached Postgres and write silver and gold to a DuckLake:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.ir</span><span class="w"> </span><span class="kn">import</span> <span class="n">Layer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.naming</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultNaming</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LakeNaming</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">relation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">,</span> <span class="n">layer</span><span class="p">):</span>
+        <span class="n">namespace</span><span class="p">,</span> <span class="n">relation</span> <span class="o">=</span> <span class="n">DefaultNaming</span><span class="p">()</span><span class="o">.</span><span class="n">relation</span><span class="p">(</span><span class="n">entity</span><span class="p">,</span> <span class="n">layer</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">"pg"</span> <span class="k">if</span> <span class="n">layer</span> <span class="ow">is</span> <span class="n">Layer</span><span class="o">.</span><span class="n">BRONZE</span> <span class="k">else</span> <span class="s2">"lake"</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">relation</span><span class="p">)</span>
+</code></pre></div>
+<p>Writing the catalog into the namespace instead (<code>"lake.silver"</code>) renders as one quoted
+identifier, a schema that does not exist. A model in a named catalog is written at
+<code>models/&lt;catalog&gt;/&lt;namespace&gt;/&lt;relation&gt;</code> (a dbt snapshot stays at
+<code>snapshots/&lt;entity&gt;_snapshot.sql</code>), and two projects composed under S-0002/D-7 must agree on
+the catalog as on the rest of the name. dbt refuses at compile what it cannot place: two
+relations of one name, which dbt would take for one model, two bronze namespaces that would
+share a source name, and a catalog named like a namespace of the default catalog.</p>
 <p><code>steps</code> is a <code>StepRegistry</code> — the manifests behind whatever the project's
 <code>steps_version</code> document wires. It is a <em>caller-assembled</em> argument rather than a spec
 document because bloomery reads no step files: a project that wires a step and compiles

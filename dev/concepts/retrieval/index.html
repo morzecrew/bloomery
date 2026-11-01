@@ -2324,7 +2324,10 @@ that declares no fusion, and an <code>analyser</code> only where none is declare
 therefore arrives with its effective <code>k</code> and <code>depth</code> even where the document named neither.</p>
 <p>The corpus relation arrives resolved through the naming policy, as a <code>namespace</code>/<code>table</code>
 pair beside the logical name — with the corpus <code>analyser</code> copied through beside it where one
-is declared. Split rather than dotted: the grammar promises nothing about
+is declared. Where the policy places the relation in a catalog other than the engine's
+default, a <code>catalog</code> key comes with the pair and the manifest is version 2: a reader that
+knows only version 1 would query the relation of that name in the default catalog, and the
+version is how it knows to stop. Split rather than dotted: the grammar promises nothing about
 quoting, so a consumer that has to quote each part cannot recover them from one string.</p>
 <h2 id="what-a-runtime-still-owes">What a runtime still owes<a class="headerlink" href="#what-a-runtime-still-owes" title="Permanent link">&para;</a></h2>
 <p>Everything physical. Index type and parameters, where the vectors are stored, the storage
