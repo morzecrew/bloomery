@@ -13,9 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was on PostgreSQL and Trino, rather than `''`. A `coalesce` or `enum_map` after the
   extract now sees the miss on DuckDB too, so a mapping that falls back to a default
   lands the same silver on both engines, and a missing reference is NULL rather than an
-  id spelled `''`. A match whose group captures nothing is still `''`. Only the emitted
-  SQL changes, so IR fingerprints stay the same, but DuckDB silver rebuilt from the
-  same bronze moves from `''` to NULL on those rows. (#392)
+  id spelled `''`. A capture group that takes no part in the match is NULL too, as on
+  PostgreSQL and Trino, while a group that matches the empty text is still `''`. Only
+  the emitted SQL changes, so IR fingerprints stay the same, but DuckDB silver rebuilt
+  from the same bronze moves from `''` to NULL on those rows. (#392)
 
 ## [0.11.0] - 2026-11-01
 

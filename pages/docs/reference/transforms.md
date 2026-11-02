@@ -19,7 +19,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `upper` | — | string → string | `[upper]` — uppercase |
 | `lower` | — | string → string | `[lower]` — lowercase |
 | `split_part` | delimiter (str), index (int) | string → string | `[{split_part: ["-", 2]}]` — the nth delimited part |
-| `regex_extract` | pattern (str), group (int) | string → string | `[{regex_extract: ["ord-(\\d+)", 1]}]` — capture group; NULL where the pattern does not match, except on Databricks and Redshift, whose engines answer `''`; `''` where it matches and the group captures nothing |
+| `regex_extract` | pattern (str), group (int) | string → string | `[{regex_extract: ["ord-(\\d+)", 1]}]` — capture group; NULL where the pattern does not match or the group takes no part in the match, except on Databricks and Redshift, whose engines answer `''`; `''` where the group matches the empty text |
 | `strip_prefix` | prefix (str) | string → string | `[{strip_prefix: "ord-"}]` — remove a leading prefix if present |
 | `strip_suffix` | suffix (str) | string → string | `[{strip_suffix: "-eu"}]` — remove a trailing suffix if present |
 | `concat` | text (str) | string → string | `[{concat: "-eu"}]` — append a literal |

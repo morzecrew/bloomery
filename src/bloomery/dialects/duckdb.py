@@ -10,6 +10,7 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import (
     SQLGlotDialect,
+    capture_group,
     epoch_timestamps,
     pick_spelled,
     space_separated,
@@ -190,28 +191,42 @@ def _nfc_normalize(node: Expression) -> Expression:
 
 
 def _matched_or_null(node: Expression) -> Expression:
-    """``REGEXP_EXTRACT(x, p, n)`` → ``CASE WHEN REGEXP_MATCHES(x, p) THEN
-    REGEXP_EXTRACT(x, p, n) END`` (S-0025/D-24).
+    """``REGEXP_EXTRACT(x, p, n)`` → ``list_extract(REGEXP_EXTRACT_ALL(x, p, n), 1)``
+    (S-0025/D-24).
 
-    DuckDB answers ``''`` where the pattern does not match, and PostgreSQL and
-    Trino answer NULL, so one mapping landed different silver on the two
-    engines and a ``coalesce`` after the extract filled the gap on only one of
-    them. ``REGEXP_MATCHES`` searches with the same RE2 options the extract
-    does. ``NULLIF(…, '')`` would be shorter and is wrong: it also turns a
-    genuine empty capture into NULL, and that is ``''`` on all three engines.
+    DuckDB's ``regexp_extract`` answers ``''`` where the pattern does not match,
+    and PostgreSQL and Trino answer NULL, so one mapping landed different silver
+    on the two engines and a ``coalesce`` after the extract filled the gap on
+    only one of them. ``regexp_extract_all`` lists the group of every match in
+    order, NULL where the group takes no part in it: the first element is the
+    first match's group, an empty list has none, and an empty capture stays
+    ``''``. On DuckDB 1.5.6 that agrees with PostgreSQL 16, Trino 483 and
+    Python's ``re`` on all three.
 
-    The walk does not descend into a node it has replaced, so an extract
-    nested in this one's subject is guarded before the subject is copied in.
+    Two shorter spellings are wrong. ``NULLIF(…, '')`` nulls an empty capture
+    too. ``CASE WHEN REGEXP_MATCHES(x, p) THEN … END`` leaves an unset group
+    ``''`` and reads the subject twice, which doubles a chain of extracts at
+    every step.
+
+    The extract's arguments carry over whole, so the generator spells its
+    flags, position and occurrence as it would have spelled them on
+    ``REGEXP_EXTRACT``. The walk does not descend into a node it has replaced,
+    so an extract nested in any of them is guarded first.
     """
 
     def guard(child: Expression) -> Expression:
         if not isinstance(child, exp.RegexpExtract):
             return child
 
-        extract = child.copy()
-        extract.set("this", child.this.transform(guard))
-        matches = exp.RegexpLike(this=extract.this.copy(), expression=extract.expression.copy())
+        args = {
+            key: value.transform(guard)
+            for key, value in child.args.items()
+            if isinstance(value, Expression)
+        }
+        matches = exp.RegexpExtractAll(**args)
 
-        return exp.Case(ifs=[exp.If(this=matches, true=extract)])
+        return exp.Anonymous(this="list_extract", expressions=[matches, exp.Literal.number(1)])
 
-    return node.transform(guard)
+    # The group first: the canonical round trip demotes it to a position,
+    # which `REGEXP_EXTRACT_ALL` would read as one (see `capture_group`).
+    return capture_group(node).transform(guard)

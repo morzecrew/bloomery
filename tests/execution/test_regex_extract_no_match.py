@@ -107,18 +107,39 @@ def test_a_reference_the_document_does_not_carry_is_null(conn: duckdb.DuckDBPyCo
     assert rows == [("r1", _CUSTOMER), ("r2", None), ("r3", None)]
 
 
-def _extracted(chain: exp.Expression, value: str) -> object:
-    sql = DuckDBDialect().render(canon(chain).ast())
+def _extracted(node: exp.Expression, value: str) -> object:
+    sql = DuckDBDialect().render(node)
     (cell,) = duckdb.connect().execute(f"SELECT {sql} FROM (SELECT ?::VARCHAR AS s)", [value]).fetchone()
     return cell
 
 
 def test_an_empty_capture_stays_empty() -> None:
-    """Only a non-match is NULL. `^(a*)` matches `b` and captures nothing, which
-    is `''` on PostgreSQL and Trino too, so `NULLIF(…, '')` is not the fix."""
+    """`^(a*)` matches `b` and captures the empty text, which is `''` on
+    PostgreSQL and Trino too, so `NULLIF(…, '')` is not the fix."""
     extract = DEFAULT_REGISTRY["regex_extract"].builder
 
-    assert _extracted(extract(exp.column("s"), "^(a*)", 1), "b") == ""
+    assert _extracted(canon(extract(exp.column("s"), "^(a*)", 1)).ast(), "b") == ""
+
+
+def test_a_group_that_takes_no_part_in_the_match_is_null() -> None:
+    """`(a)|b` matches `b` through its other branch, so group 1 is unset: NULL
+    on PostgreSQL and Trino, and `''` from DuckDB's own `regexp_extract`."""
+    extract = DEFAULT_REGISTRY["regex_extract"].builder
+
+    assert _extracted(canon(extract(exp.column("s"), "(a)|b", 1)).ast(), "b") is None
+
+
+def test_the_extract_s_flags_reach_the_rewrite() -> None:
+    """A hand-built extract may carry flags, and the rewrite keeps them: `a`
+    under `i` matches `A`."""
+    extract = exp.RegexpExtract(
+        this=exp.column("s"),
+        expression=exp.Literal.string("a"),
+        group=exp.Literal.number(0),
+        parameters=exp.Literal.string("i"),
+    )
+
+    assert _extracted(extract, "A") == "A"
 
 
 def test_an_extract_of_an_extract_is_guarded_at_both_steps() -> None:
@@ -126,7 +147,18 @@ def test_an_extract_of_an_extract_is_guarded_at_both_steps() -> None:
     outer pattern matches the empty text, so an unguarded inner `''` would come
     out as `''`."""
     extract = DEFAULT_REGISTRY["regex_extract"].builder
-    chain = extract(extract(exp.column("s"), "id=([0-9]+)", 1), "^([0-9]*)", 1)
+    chain = canon(extract(extract(exp.column("s"), "id=([0-9]+)", 1), "^([0-9]*)", 1)).ast()
 
     assert _extracted(chain, "id=1234") == "1234"
     assert _extracted(chain, "x") is None
+
+
+def test_an_extract_in_the_pattern_is_guarded_too() -> None:
+    """A hand-built extract may take its pattern from another. Unguarded, the
+    inner non-match is the empty pattern, which matches anything."""
+    inner = exp.RegexpExtract(
+        this=exp.column("s"), expression=exp.Literal.string("p=(.+)"), group=exp.Literal.number(1)
+    )
+    outer = exp.RegexpExtract(this=exp.column("s"), expression=inner, group=exp.Literal.number(0))
+
+    assert _extracted(outer, "x") is None

@@ -353,7 +353,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `tests/property/` — 31 decision(s)
 - `tests/support/` — 43 decision(s)
 - `tests/unit/` — 88 decision(s)
-- `tests/unit/test_dialects/` — 15 decision(s)
+- `tests/unit/test_dialects/` — 16 decision(s)
 - `tests/unit/test_emit/` — 51 decision(s)
 - `tests/unit/test_guardrails/` — 62 decision(s)
 - `tests/unit/test_ir/` — 11 decision(s)
