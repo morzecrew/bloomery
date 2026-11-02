@@ -19,6 +19,7 @@ import psycopg
 import pytest
 import trino
 from sqlglot import exp
+from support.reference import regex_extract
 from support.type_conformance import (
     CASES,
     UNRUNNABLE,
@@ -190,3 +191,26 @@ def test_declared_types_are_what_trino_produces(trino_cursor: trino.dbapi.Cursor
         return canonical(trino_cursor.description[0][1], dialect="trino")
 
     assert_matches_known(measure(port, run), port="trino")
+
+
+#: ``(pattern, group, value)``: a non-match, an empty capture, a group that
+#: takes no part in the match, and a match.
+_REGEX_CASES = (
+    ("sku-([0-9]+)", 1, "x"),
+    ("^(a*)", 1, "b"),
+    ("(a)|b", 1, "b"),
+    ("sku-([0-9]+)", 1, "sku-42"),
+)
+
+
+@pytest.mark.engine("trino")
+def test_regex_extract_answers_the_reference_on_trino(trino_cursor: trino.dbapi.Cursor) -> None:
+    """NULL for a non-match and for an unset group, `''` for an empty capture:
+    the answers the DuckDB port is rewritten to give (S-0025/D-24)."""
+    port = get_dialect("trino")
+    for pattern, group, value in _REGEX_CASES:
+        built = DEFAULT_REGISTRY["regex_extract"].builder(exp.Literal.string(value), pattern, group)
+        trino_cursor.execute(f"SELECT {port.render(canon(built).ast())}")
+        ((answer,),) = trino_cursor.fetchall()
+
+        assert answer == regex_extract(value, pattern, group), (pattern, value)
