@@ -12,9 +12,10 @@ value for value, over inputs chosen to break a near-equivalent:
   reads as a wildcard;
 * a capture group that is not the whole match, which is what SQLGlot's
   generators silently dropped (S-0045/D-5);
-* a non-match, where the two engines are *allowed* to disagree — DuckDB
-  returns ``''`` and PostgreSQL NULL — because ``regex_extract`` declares
-  ``nullifies=True`` on exactly that portable reading.
+* a non-match and a group that takes no part in the match, NULL on both:
+  DuckDB's own ``regexp_extract`` answers ``''`` for either, and the DuckDB port
+  reads the first match's group instead (S-0025/D-24) — next to an empty
+  capture, which is ``''`` on both and must stay so.
 
 Opt-in (Docker required); excluded from ``just test``.
 """
@@ -43,6 +44,8 @@ CASES: tuple[tuple[str, tuple[object, ...], tuple[str, ...]], ...] = (
     ("strip_suffix", ("%b",), ("a%b", "ab", "a%bc")),
     ("regex_extract", ("sku-([0-9]+)", 1), ("sku-42", "SKU-42", "sku-", "x")),
     ("regex_extract", ("sku-([0-9]+)", 0), ("sku-42", "nope")),
+    ("regex_extract", ("^(a*)", 1), ("b", "aa")),
+    ("regex_extract", ("(a)|b", 1), ("b", "a")),
 )
 
 
@@ -86,8 +89,6 @@ def test_postgres_spelling_agrees_with_duckdb(
         ).fetchone()
         assert row is not None
         pg_value = row[0]
-        if transform == "regex_extract" and duck_value == "" and pg_value is None:
-            continue  # the declared `nullifies` divergence, not a spelling defect
         assert pg_value == duck_value, (
             f"{transform}{args} over {value!r}: duckdb {duck_value!r}, postgres {pg_value!r}"
         )

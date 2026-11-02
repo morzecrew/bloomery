@@ -288,7 +288,14 @@ def test_the_offset_guard_reads_its_operand_as_text_on_every_port(
 @pytest.mark.parametrize(
     ("dialect", "expected"),
     [
-        (DuckDBDialect(), "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 1)"),
+        # The first match's group, so a non-match is NULL rather than DuckDB's
+        # '' (S-0025/D-24).
+        (
+            DuckDBDialect(),
+            "LIST_EXTRACT( LIST_TRANSFORM( [sku], __subject -> COALESCE( "
+            "NULLIF(REGEXP_EXTRACT(__subject, 'sku-([0-9]+)', 1), ''), "
+            "LIST_EXTRACT(REGEXP_EXTRACT_ALL(__subject, 'sku-([0-9]+)', 1), 1) ) ), 1 )",
+        ),
         # PostgreSQL has no `regexp_extract`; `regexp_substr`'s sixth argument
         # is the capture group (S-0046/what-was-measured (§2.3)).
         (PostgresDialect(), "REGEXP_SUBSTR(sku, 'sku-([0-9]+)', 1, 1, '', 1)"),
@@ -321,7 +328,7 @@ def test_the_capture_group_survives_the_canonical_round_trip(
     declared-vs-produced battery found it (S-0045/D-5).
     """
     built = DEFAULT_REGISTRY["regex_extract"].builder(exp.column("sku"), "sku-([0-9]+)", 1)
-    assert dialect.render(canon(built).ast()) == expected
+    assert " ".join(dialect.render(canon(built).ast()).split()) == expected
 
 
 def test_a_capture_group_the_author_set_is_never_overwritten() -> None:
@@ -333,7 +340,7 @@ def test_a_capture_group_the_author_set_is_never_overwritten() -> None:
         position=exp.Literal.number(1),
         group=exp.Literal.number(2),
     )
-    assert DuckDBDialect().render(node) == "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 2)"
+    assert TrinoDialect().render(node) == "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 2)"
 
 
 def test_restoring_the_capture_group_does_not_mutate_the_input() -> None:

@@ -611,8 +611,8 @@ def test_regex_extract_returns_the_group_and_not_the_match(warehouse: SqlApi) ->
     miss = _transform_sql("regex_extract", "not_a_sku", "sku-([0-9]+)", 1)
 
     assert _cell(warehouse, hit) == "42"
-    # `regex_extract` declares `nullifies`, which is the portable reading of a
-    # non-match: DuckDB answers `''` and the other ports answer NULL.
+    # `regex_extract` declares `nullifies`, and a non-match is NULL here as on
+    # PostgreSQL, Trino and the guarded DuckDB port (S-0025/D-24).
     assert _cell(warehouse, f"SELECT ({miss}) FROM {_SPECIMEN}") is None
 
 
