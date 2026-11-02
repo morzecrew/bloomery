@@ -2314,7 +2314,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 <td><code>regex_extract</code></td>
 <td>pattern (str), group (int)</td>
 <td>string → string</td>
-<td><code>[{regex_extract: ["ord-(\\d+)", 1]}]</code> — capture group</td>
+<td><code>[{regex_extract: ["ord-(\\d+)", 1]}]</code> — capture group; NULL where the pattern does not match or the group takes no part in the match, and <code>''</code> where the group matches the empty text; Databricks and Redshift emit the engine's own answer</td>
 </tr>
 <tr>
 <td><code>strip_prefix</code></td>
