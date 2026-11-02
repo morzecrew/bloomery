@@ -9,14 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`regex_extract` is NULL on DuckDB where the pattern does not match**, as it already
-  was on PostgreSQL and Trino, rather than `''`. A `coalesce` or `enum_map` after the
-  extract now sees the miss on DuckDB too, so a mapping that falls back to a default
-  lands the same silver on both engines, and a missing reference is NULL rather than an
-  id spelled `''`. A capture group that takes no part in the match is NULL too, as on
-  PostgreSQL and Trino, while a group that matches the empty text is still `''`. Only
-  the emitted SQL changes, so IR fingerprints stay the same, but DuckDB silver rebuilt
-  from the same bronze moves from `''` to NULL on those rows. (#392)
 - **A transform applied to another transform's output renders for its engine.** On
   PostgreSQL, a `strip_suffix` or `regex_extract` over a `strip_suffix` or
   `regex_extract` failed at run time (`function ends_with(text, unknown) does not
@@ -28,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   engine's default, group 1. Each step now renders as it does alone, and so a nested
   `regex_extract` naming a group above 1 is refused on Redshift at compile, as a single
   one is, where it used to compile to a call that read the group as a start position.
+- **`regex_extract` is NULL on DuckDB where the pattern does not match**, as it already
+  was on PostgreSQL and Trino, rather than `''`. A `coalesce` or `enum_map` after the
+  extract now sees the miss on DuckDB too, so a mapping that falls back to a default
+  lands the same silver on both engines, and a missing reference is NULL rather than an
+  id spelled `''`. A capture group that takes no part in the match is NULL too, as on
+  PostgreSQL and Trino, while a group that matches the empty text is still `''`. Only
+  the emitted SQL changes, so IR fingerprints stay the same, but DuckDB silver rebuilt
+  from the same bronze moves from `''` to NULL on those rows. (#392)
 
 ## [0.11.0] - 2026-11-01
 
