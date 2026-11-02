@@ -229,3 +229,49 @@ amendments:
       #306, so a bronze column landed as `json` or `jsonb` would have made the check
       itself fail. The PostgreSQL check reads the column's text. D-100 also says outright
       that D-99 does not apply on the ports it does not reach.
+  - id: A-11
+    at: '2026-11-02T08:25:09Z'
+    title: >-
+      regex_extract's non-match is NULL on the DuckDB port
+    changes:
+      - subject: D-73
+        field: text
+        before: >-
+          *(2026-08-08, PR #7 review)* **`nullifies` is a declared property of a transform,
+          not a name list in the quality lowering.** `coercible` infers a cause ("the
+          cast failed") from an effect ("the value vanished"), which is sound only
+          while nothing in the chain nulls a value on purpose. `{nullif: 'N/A'}` says
+          a sentinel means missing, and the row was quarantined for obeying the mapping
+          it was given — with `coercible` never authored, because D24's opt-in is
+          per *entity* and the implicit rule is generated for every mapped field.
+          `TransformSpec` gains `nullifies`; `nullif` and `json_path` carry it, and
+          so do `split_part` and `regex_extract` on the portable reading (`''` on
+          DuckDB, NULL on Trino — a divergence must not be resolved by whichever engine
+          happens to run). The implicit rule is skipped on such a chain and an **authored**
+          one is refused, because a rule a human wrote and a rule the compiler inferred
+          do not deserve the same treatment. Declared on the transform so the next
+          one added must decide, rather than reintroducing the false positive silently.
+        after: >-
+          *(2026-08-08, PR #7 review)* **`nullifies` is a declared property of a transform,
+          not a name list in the quality lowering.** `coercible` infers a cause ("the
+          cast failed") from an effect ("the value vanished"), which is sound only
+          while nothing in the chain nulls a value on purpose. `{nullif: 'N/A'}` says
+          a sentinel means missing, and the row was quarantined for obeying the mapping
+          it was given — with `coercible` never authored, because D24's opt-in is
+          per *entity* and the implicit rule is generated for every mapped field.
+          `TransformSpec` gains `nullifies`; `nullif` and `json_path` carry it, and
+          so do `split_part` and `regex_extract` on the portable reading (DuckDB's
+          engine answers `''` where Trino's answers NULL — a divergence must not be
+          resolved by whichever engine happens to run; the DuckDB port renders `regex_extract`'s
+          NULL since S-0025/D-24). The implicit rule is skipped on such a chain and
+          an **authored** one is refused, because a rule a human wrote and a rule
+          the compiler inferred do not deserve the same treatment. Declared on the
+          transform so the next one added must decide, rather than reintroducing the
+          false positive silently.
+      - subject: D-73
+        field: fingerprint
+        after: cfef20b9183a68ce/202c11f3690cefb1
+    md: |-
+      #392: the DuckDB port renders `regex_extract`'s non-match as NULL
+      (S-0025/D-24), so the parenthetical now names the engines' answers and the
+      port's separately. The declaration this row makes is unchanged.

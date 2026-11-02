@@ -313,9 +313,9 @@ def _pg_text_functions(node: Expression) -> Expression:
     argument is the capture group, so the group index survives rather than
     being dropped the way SQLGlot's duckdb and trino generators dropped it
     (S-0045/D-5). Verified equal to DuckDB for group 0 and group 1. A
-    non-match returns NULL here and ``''`` on DuckDB, which is the divergence
-    ``regex_extract`` already declares by carrying ``nullifies=True`` on the
-    portable reading.
+    non-match returns NULL here, the reading ``regex_extract`` declares by
+    carrying ``nullifies=True``, and the DuckDB port guards its own call to
+    match (S-0025/D-24).
 
     ``regexp_substr`` arrived in PostgreSQL 15 and ``pg_input_is_valid``
     (S-0033/D-84) already puts this port's floor at 16, so nothing new is
