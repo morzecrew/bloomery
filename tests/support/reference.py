@@ -216,8 +216,8 @@ def split_part(value: str | None, delimiter: str, index: int) -> str | None:
 
 
 def regex_extract(value: str | None, pattern: str, group: int) -> str | None:
-    """The capture group, or NULL when the pattern does not match — the
-    portable reading; DuckDB answers ``''``."""
+    """The capture group, or NULL when the pattern does not match — DuckDB's
+    port included, which guards the engine's ``''`` (S-0025/D-24)."""
     if value is None:
         return None
     match = re.search(pattern, value)

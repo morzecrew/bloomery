@@ -66,6 +66,13 @@ Quarantine is an emitter convention (`<entity>__quarantine` artifact), not IR su
 
 - Paths: `src/bloomery/spec/mapping.py` `src/bloomery/transforms/_builtins.py`
 
+### S-0025/D-24 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
+
+`regex_extract` is NULL where the pattern does not match on DuckDB, PostgreSQL and Trino. PostgreSQL's `regexp_substr` and Trino's `regexp_extract` answer NULL themselves; DuckDB's `regexp_extract` answers `''`, so the DuckDB port renders `CASE WHEN REGEXP_MATCHES(x, p) THEN REGEXP_EXTRACT(x, p, n) END`. A match that captures nothing stays `''`, as it is on PostgreSQL and Trino. The rewrite is at render, so the IR and its fingerprint do not change
+
+- Paths: `src/bloomery/dialects/duckdb.py` `src/bloomery/transforms/_builtins.py` `tests/execution/test_regex_extract_no_match.py` `tests/engines/test_postgres_spellings.py` `tests/support/engine_differences.py`
+- Consequence: One mapping lands the same silver on DuckDB as on PostgreSQL, and a `coalesce` or `enum_map` after the extract sees the non-match on both. Silver built on DuckDB before this changes on its next run: a non-matching row's `''` becomes NULL. The differential no longer licenses `''` for DuckDB. Two answers still differ, measured and not rewritten: a capture group that takes no part in the match (`(a)|b` over `b`, group 1) is `''` on DuckDB and NULL on PostgreSQL 16 and Trino 483, and Databricks' and Redshift's documentation give `''` for a non-match, which no lane here can run
+
 ### S-0033/D-3 — `ASSUMED` (Data quality: declarative cleansing, dispositions, quarantine)
 
 Coercion failure is a rule: transform chains lower to failure-marker form (`TRY_CAST`-style per dialect); the implicit, overridable `coercible` rule (default `quarantine`) disposes of it. Retires `Mapping.on_unmapped_enum` (S-0019 amendment — absorbed into `in_enum`/`coercible`) and supersedes S-0025/D-7's never-implemented emitter convention with the modeled reject table.

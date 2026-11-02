@@ -311,8 +311,8 @@ def split_part(col: Expression, delimiter: str, index: int) -> Expression:
     arg_kinds=(ArgKind.STR, ArgKind.INT),
     input=(StringType,),
     output=StringType(),
-    # No match: '' on DuckDB, NULL on Trino and Postgres. Same reading as
-    # split_part — the portable one.
+    # No match: NULL on PostgreSQL and Trino, and on DuckDB, whose port guards
+    # the call because the engine answers '' (S-0025/D-24).
     nullifies=True,
 )
 def regex_extract(col: Expression, pattern: str, group: int) -> Expression:

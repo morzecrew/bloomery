@@ -62,22 +62,6 @@ _SPLIT_PART = Difference(
 )
 
 
-#: The same shape for ``regex_extract``, whose no-match answer is ``''`` on
-#: DuckDB and NULL on Trino and PostgreSQL — over a present input only, for the
-#: same reason as ``split_part`` above.
-_REGEX_EXTRACT = Difference(
-    engine="duckdb",
-    transform="regex_extract",
-    predicate=lambda source: source is not None,
-    held_to=lambda produced, reference: produced == ("" if reference is None else reference),
-    justification=(
-        "src/bloomery/transforms/_builtins.py:285 — regex_extract declares "
-        "nullifies=True on the portable NULL reading; DuckDB answers '' when "
-        "the pattern does not match"
-    ),
-)
-
-
 def _one_unit(produced: Any, reference: Any) -> bool:
     """Whether ``produced`` is within one unit in the last place of ``reference``."""
     if not isinstance(produced, Decimal) or not isinstance(reference, Decimal):
@@ -107,7 +91,6 @@ _DIVIDE = Difference(
 #: Every allowed difference, in a stable order.
 DIFERENCES: tuple[Difference, ...] = (
     _SPLIT_PART,
-    _REGEX_EXTRACT,
     _DIVIDE,
 )
 

@@ -68,6 +68,10 @@ class DuckDBDialect(SQLGlotDialect):
         quality-carrying one quarantined the row, on text PostgreSQL and Trino
         both read. This port used to add nothing here, and its docstring said
         so; the claim was measured false (S-0044, S-0052).
+
+        ``regex_extract`` is NULL where the pattern does not match, as it is on
+        PostgreSQL and Trino, rather than DuckDB's ``''`` (S-0025/D-24 — see
+        :func:`_matched_or_null`).
         """
 
         def utc(interpretation: Expression) -> Expression:
@@ -80,6 +84,7 @@ class DuckDBDialect(SQLGlotDialect):
         rewritten = pick_spelled(rewritten, _picked)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_nfc_normalize)
+        rewritten = _matched_or_null(rewritten)
         return super().render(rewritten)
 
 
@@ -179,3 +184,34 @@ def _nfc_normalize(node: Expression) -> Expression:
         raise ValueError(msg)
 
     return cast("Expression", exp.func("NFC_NORMALIZE", node.this.copy()))
+
+
+# ....................... #
+
+
+def _matched_or_null(node: Expression) -> Expression:
+    """``REGEXP_EXTRACT(x, p, n)`` → ``CASE WHEN REGEXP_MATCHES(x, p) THEN
+    REGEXP_EXTRACT(x, p, n) END`` (S-0025/D-24).
+
+    DuckDB answers ``''`` where the pattern does not match, and PostgreSQL and
+    Trino answer NULL, so one mapping landed different silver on the two
+    engines and a ``coalesce`` after the extract filled the gap on only one of
+    them. ``REGEXP_MATCHES`` searches with the same RE2 options the extract
+    does. ``NULLIF(…, '')`` would be shorter and is wrong: it also turns a
+    genuine empty capture into NULL, and that is ``''`` on all three engines.
+
+    The walk does not descend into a node it has replaced, so an extract
+    nested in this one's subject is guarded before the subject is copied in.
+    """
+
+    def guard(child: Expression) -> Expression:
+        if not isinstance(child, exp.RegexpExtract):
+            return child
+
+        extract = child.copy()
+        extract.set("this", child.this.transform(guard))
+        matches = exp.RegexpLike(this=extract.this.copy(), expression=extract.expression.copy())
+
+        return exp.Case(ifs=[exp.If(this=matches, true=extract)])
+
+    return node.transform(guard)

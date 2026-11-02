@@ -55,6 +55,13 @@ A naming policy's `relation()` may return `(catalog, namespace, relation)` as we
 - Paths: `src/bloomery/naming.py` `src/bloomery/emit/dbt/__init__.py` `src/bloomery/emit/sqlmesh/__init__.py` `src/bloomery/emit/metricflow/__init__.py` `src/bloomery/emit/cube/__init__.py` `src/bloomery/emit/steps.py` `src/bloomery/emit/retrieval.py` `tests/unit/test_naming.py` `tests/unit/test_emit/test_naming_catalog.py` `tests/execution/test_naming_catalog.py` `tests/e2e/test_naming_catalog.py`
 - Consequence: One DuckDB project can read bronze from an attached Postgres and write silver and gold to a DuckLake, built by SQLMesh and by dbt in the e2e tier. Trino, Unity, Snowflake databases and BigQuery projects get the same three-part names, though nothing here runs them against those engines. A policy that answers with a pair compiles byte for byte as before. The catalog is part of the name two composing projects must share (S-0002/D-7). A catalog written into the namespace still renders as one quoted identifier, and nothing refuses it
 
+### S-0025/D-24 — `ASSUMED` (Ports and emitters: targets, dialects, naming)
+
+`regex_extract` is NULL where the pattern does not match on DuckDB, PostgreSQL and Trino. PostgreSQL's `regexp_substr` and Trino's `regexp_extract` answer NULL themselves; DuckDB's `regexp_extract` answers `''`, so the DuckDB port renders `CASE WHEN REGEXP_MATCHES(x, p) THEN REGEXP_EXTRACT(x, p, n) END`. A match that captures nothing stays `''`, as it is on PostgreSQL and Trino. The rewrite is at render, so the IR and its fingerprint do not change
+
+- Paths: `src/bloomery/dialects/duckdb.py` `src/bloomery/transforms/_builtins.py` `tests/execution/test_regex_extract_no_match.py` `tests/engines/test_postgres_spellings.py` `tests/support/engine_differences.py`
+- Consequence: One mapping lands the same silver on DuckDB as on PostgreSQL, and a `coalesce` or `enum_map` after the extract sees the non-match on both. Silver built on DuckDB before this changes on its next run: a non-matching row's `''` becomes NULL. The differential no longer licenses `''` for DuckDB. Two answers still differ, measured and not rewritten: a capture group that takes no part in the match (`(a)|b` over `b`, group 1) is `''` on DuckDB and NULL on PostgreSQL 16 and Trino 483, and Databricks' and Redshift's documentation give `''` for a non-match, which no lane here can run
+
 ### S-0026/D-12 — `ASSUMED` (Testing strategy and fixture corpus)
 
 The corpus grows to fourteen fixtures (D7): `role_playing_dates`, `semi_additive_inventory` (the former `semi_additive`, renamed and extended), `non_additive_aov`, and `multi_mart_refusal` join the spec §7.7 set; `fanout_trap` now proves the compile-time `GrainViolation` (S-0023) and keeps its execution-level wrong-sum proof.
