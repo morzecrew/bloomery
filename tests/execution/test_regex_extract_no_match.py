@@ -11,6 +11,7 @@ than 0, and the missing customer was a customer called `''`.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import duckdb
@@ -162,3 +163,15 @@ def test_an_extract_in_the_pattern_is_guarded_too() -> None:
     outer = exp.RegexpExtract(this=exp.column("s"), expression=inner, group=exp.Literal.number(0))
 
     assert _extracted(outer, "x") is None
+
+
+def test_a_chain_names_its_subject_once() -> None:
+    """The subject is bound once per extract, so a chain's SQL grows linearly.
+    A spelling that names it twice doubles at every step: `2 ** 3` copies of
+    `s` for three extracts."""
+    extract = DEFAULT_REGISTRY["regex_extract"].builder
+    chain = exp.column("s")
+    for pattern in ("a(.*)", "b(.*)", "c(.*)"):
+        chain = extract(chain, pattern, 1)
+
+    assert re.findall(r"\bs\b", DuckDBDialect().render(canon(chain).ast())) == ["s"]

@@ -191,27 +191,38 @@ def _nfc_normalize(node: Expression) -> Expression:
 
 
 def _matched_or_null(node: Expression) -> Expression:
-    """``REGEXP_EXTRACT(x, p, n)`` → ``list_extract(REGEXP_EXTRACT_ALL(x, p, n), 1)``
-    (S-0025/D-24).
+    """``REGEXP_EXTRACT(x, p, n)`` → the first match's group, or NULL
+    (S-0025/D-24)::
 
-    DuckDB's ``regexp_extract`` answers ``''`` where the pattern does not match,
-    and PostgreSQL and Trino answer NULL, so one mapping landed different silver
-    on the two engines and a ``coalesce`` after the extract filled the gap on
-    only one of them. ``regexp_extract_all`` lists the group of every match in
-    order, NULL where the group takes no part in it: the first element is the
-    first match's group, an empty list has none, and an empty capture stays
-    ``''``. On DuckDB 1.5.6 that agrees with PostgreSQL 16, Trino 483 and
-    Python's ``re`` on all three.
+        list_extract(list_transform([x], __subject ->
+            COALESCE(NULLIF(REGEXP_EXTRACT(__subject, p, n), ''),
+                     list_extract(REGEXP_EXTRACT_ALL(__subject, p, n), 1))), 1)
 
-    Two shorter spellings are wrong. ``NULLIF(…, '')`` nulls an empty capture
-    too. ``CASE WHEN REGEXP_MATCHES(x, p) THEN … END`` leaves an unset group
-    ``''`` and reads the subject twice, which doubles a chain of extracts at
-    every step.
+    DuckDB's ``regexp_extract`` answers ``''`` where the pattern does not
+    match, and PostgreSQL and Trino answer NULL, so one mapping landed different
+    silver on the two engines and a ``coalesce`` after the extract filled the
+    gap on only one of them. ``''`` from ``regexp_extract`` is one of three
+    things: no match, a group that takes no part in the match, or a group that
+    matched the empty text. Only then does ``regexp_extract_all`` run, and it
+    tells them apart: an empty list, NULL and ``''`` as its first element. Any
+    other answer is the group itself, from a call that stopped at the first
+    match. On DuckDB 1.5.6 that agrees with PostgreSQL 16, Trino 483 and
+    Python's ``re``.
 
-    The extract's arguments carry over whole, so the generator spells its
-    flags, position and occurrence as it would have spelled them on
-    ``REGEXP_EXTRACT``. The walk does not descend into a node it has replaced,
-    so an extract nested in any of them is guarded first.
+    The subject is bound once in the lambda, so a chain of extracts grows
+    linearly, where a spelling that repeats it doubles at every step. Three
+    shorter spellings are wrong. ``NULLIF(…, '')`` nulls an empty capture.
+    ``CASE WHEN REGEXP_MATCHES(x, p) THEN … END`` leaves an unset group ``''``.
+    ``regexp_extract_all`` alone collects every match to keep one: for ``(.)``
+    over 100,000 rows of a thousand characters it took 10 s where
+    ``regexp_extract`` took 0.02 s. ``COALESCE`` evaluates its second argument
+    only for the rows the first left NULL, so this spelling stays within three
+    times ``regexp_extract``'s time on every pattern measured.
+
+    The extract's own arguments carry over to both calls, so the generator
+    spells flags, position and occurrence as it would have. The walk does not
+    descend into a node it has replaced, so an extract nested in any argument
+    is guarded first.
     """
 
     def guard(child: Expression) -> Expression:
@@ -223,10 +234,34 @@ def _matched_or_null(node: Expression) -> Expression:
             for key, value in child.args.items()
             if isinstance(value, Expression)
         }
-        matches = exp.RegexpExtractAll(**args)
+        subject = args.pop("this")
 
-        return exp.Anonymous(this="list_extract", expressions=[matches, exp.Literal.number(1)])
+        def call(kind: type[exp.RegexpExtract | exp.RegexpExtractAll]) -> Expression:
+            copied = {key: value.copy() for key, value in args.items()}
+            return kind(this=exp.column(_SUBJECT), **copied)
+
+        def first(items: Expression) -> Expression:
+            return exp.Anonymous(this="list_extract", expressions=[items, exp.Literal.number(1)])
+
+        found = exp.Coalesce(
+            this=exp.Nullif(this=call(exp.RegexpExtract), expression=exp.Literal.string("")),
+            expressions=[first(call(exp.RegexpExtractAll))],
+        )
+        bound = exp.Anonymous(
+            this="list_transform",
+            expressions=[
+                exp.Array(expressions=[subject]),
+                exp.Lambda(this=found, expressions=[exp.to_identifier(_SUBJECT)]),
+            ],
+        )
+
+        return first(bound)
 
     # The group first: the canonical round trip demotes it to a position,
-    # which `REGEXP_EXTRACT_ALL` would read as one (see `capture_group`).
+    # which both calls would read as one (see `capture_group`).
     return capture_group(node).transform(guard)
+
+
+#: The lambda parameter the subject is bound to: a name no mapping writes, so
+#: a column an argument reads is never shadowed.
+_SUBJECT = "__subject"

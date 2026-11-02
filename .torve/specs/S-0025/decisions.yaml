@@ -390,32 +390,41 @@ decisions:
       `regex_extract` is NULL where the pattern does not match on DuckDB, PostgreSQL
       and Trino. PostgreSQL's `regexp_substr` and Trino's `regexp_extract` answer
       NULL themselves; DuckDB's `regexp_extract` answers `''`, so the DuckDB port
-      renders `list_extract(REGEXP_EXTRACT_ALL(x, p, n), 1)`, carrying the extract's
-      own flags, position and occurrence. A match that captures the empty text stays
-      `''`, and a group that takes no part in the match is NULL, on all three. The
-      rewrite is at render, so the IR and its fingerprint do not change
+      binds the subject once in a lambda and renders `COALESCE(NULLIF(REGEXP_EXTRACT(v,
+      p, n), ''), list_extract(REGEXP_EXTRACT_ALL(v, p, n), 1))`, carrying the
+      extract's own flags, position and occurrence into both calls. A group that
+      matches the empty text stays `''`, and a group that takes no part in the match
+      is NULL, on all three. The rewrite is at render, so the IR and its fingerprint
+      do not change
     paths:
       - src/bloomery/dialects/duckdb.py
       - src/bloomery/transforms/_builtins.py
       - tests/unit/test_dialects/test_base.py
       - tests/execution/test_regex_extract_no_match.py
       - tests/engines/test_postgres_spellings.py
+      - tests/engines/test_type_conformance.py
       - tests/support/engine_differences.py
     consequence: >-
       One mapping lands the same silver on DuckDB as on PostgreSQL, and a `coalesce`
       or `enum_map` after the extract sees the non-match on both. Silver built on
       DuckDB before this changes on its next run: a non-matching row's `''` becomes
       NULL, and so does an unset group's. The differential no longer licenses `''`
-      for DuckDB. Databricks' and Redshift's documentation give `''` for a non-match,
-      which no lane here can run, so neither port is rewritten
+      for DuckDB. Snowflake's `REGEXP_SUBSTR` and BigQuery's `REGEXP_EXTRACT` answer
+      NULL for a non-match themselves, which their live lanes assert. Databricks'
+      and Redshift's documentation give `''`, which no lane here can run, so neither
+      port is rewritten
     rationale: >-
       #392. Measured on DuckDB 1.5.6, PostgreSQL 16 and Trino 483, against Python's
-      `re` as the reference: `REGEXP_EXTRACT_ALL` lists NULL for a group that takes
-      no part in a match, so its first element agrees with the other engines on a
-      non-match, an empty capture and an unset group alike. `NULLIF(…, '')` would
-      also null an empty capture. `CASE WHEN REGEXP_MATCHES(x, p) THEN … END`, the
-      spelling #392 proposed, leaves an unset group `''` and reads the subject twice,
-      which doubles a chain of extracts at every step. A guard on the call rather
-      than a new `nullifies` reading, because the transform's declaration was
-      already the NULL one (S-0033/D-73) and only DuckDB's rendering fell short of it
+      `re` as the reference. `''` from `regexp_extract` is a non-match, an unset
+      group or an empty capture, and only then does `regexp_extract_all` run: its
+      first element is NULL, NULL and `''` for the three. Three shorter spellings
+      were measured and rejected. `NULLIF(…, '')` nulls an empty capture. `CASE WHEN
+      REGEXP_MATCHES(x, p) THEN … END`, the spelling #392 proposed, leaves an unset
+      group `''` and repeats the subject, which doubles a chain of extracts at every
+      step. `list_extract(REGEXP_EXTRACT_ALL(…), 1)` alone collects every match: 10 s
+      against `regexp_extract`'s 0.02 s for `(.)` over 100,000 rows of a thousand
+      characters, where this spelling stays within three times `regexp_extract` on
+      every pattern measured. A guard on the call rather than a new `nullifies`
+      reading, because the transform's declaration was already the NULL one
+      (S-0033/D-73) and only DuckDB's rendering fell short of it
     cites: [D-5, S-0033/D-73]
