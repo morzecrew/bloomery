@@ -22,6 +22,7 @@ from support.execution import materialize, warehouse
 
 from bloomery import Target, compile_project, load_catalog, load_project
 from bloomery.dialects import DuckDBDialect
+from bloomery.dialects.duckdb import _unshadowing
 from bloomery.ir import canon
 from bloomery.transforms import DEFAULT_REGISTRY
 
@@ -175,3 +176,22 @@ def test_a_chain_names_its_subject_once() -> None:
         chain = extract(chain, pattern, 1)
 
     assert re.findall(r"\bs\b", DuckDBDialect().render(canon(chain).ast())) == ["s"]
+
+
+def test_a_name_taken_in_any_case_is_passed_over() -> None:
+    """DuckDB documents unquoted identifiers as case-insensitive, so the
+    parameter avoids `__SUBJECT` as well. DuckDB 1.5.6 binds that spelling to
+    the column ahead of the parameter, so only the name chosen can show it."""
+    assert _unshadowing([exp.column("__SUBJECT"), exp.column("__subject_1")]) == "__subject_2"
+
+
+def test_the_binding_never_shadows_a_column_an_argument_reads() -> None:
+    """A hand-built extract may read its pattern from a column. A parameter
+    named like that column would read the subject, `cab`, as the pattern."""
+    extract = exp.RegexpExtract(
+        this=exp.column("s"), expression=exp.column("__subject"), group=exp.Literal.number(0)
+    )
+    sql = DuckDBDialect().render(extract)
+    (cell,) = duckdb.connect().execute(f"SELECT {sql} FROM (SELECT 'cab' AS s, 'a' AS __subject)").fetchone()
+
+    assert cell == "a"

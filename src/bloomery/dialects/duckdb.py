@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import ClassVar, cast
 
 from sqlglot import exp
@@ -235,10 +236,11 @@ def _matched_or_null(node: Expression) -> Expression:
             if isinstance(value, Expression)
         }
         subject = args.pop("this")
+        name = _unshadowing(args.values())
 
         def call(kind: type[exp.RegexpExtract | exp.RegexpExtractAll]) -> Expression:
             copied = {key: value.copy() for key, value in args.items()}
-            return kind(this=exp.column(_SUBJECT), **copied)
+            return kind(this=exp.column(name), **copied)
 
         def first(items: Expression) -> Expression:
             return exp.Anonymous(this="list_extract", expressions=[items, exp.Literal.number(1)])
@@ -251,7 +253,7 @@ def _matched_or_null(node: Expression) -> Expression:
             this="list_transform",
             expressions=[
                 exp.Array(expressions=[subject]),
-                exp.Lambda(this=found, expressions=[exp.to_identifier(_SUBJECT)]),
+                exp.Lambda(this=found, expressions=[exp.to_identifier(name)]),
             ],
         )
 
@@ -262,6 +264,23 @@ def _matched_or_null(node: Expression) -> Expression:
     return capture_group(node).transform(guard)
 
 
-#: The lambda parameter the subject is bound to: a name no mapping writes, so
-#: a column an argument reads is never shadowed.
-_SUBJECT = "__subject"
+def _unshadowing(arguments: Iterable[Expression]) -> str:
+    """The lambda parameter for the subject: ``__subject``, or the first
+    ``__subject_<n>`` none of the arguments inside the lambda names. A
+    parameter that shared a column's name would read the subject in its place,
+    and DuckDB documents unquoted identifiers as case-insensitive, so
+    ``__SUBJECT`` counts as taken too.
+    """
+
+    taken = {
+        identifier.name.casefold()
+        for argument in arguments
+        for identifier in argument.find_all(exp.Identifier)
+    }
+    name, n = "__subject", 0
+
+    while name in taken:
+        n += 1
+        name = f"__subject_{n}"
+
+    return name
