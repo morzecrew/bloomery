@@ -446,18 +446,28 @@ def everywhere(node: Expression, rewrite: Callable[[Expression], Expression]) ->
     a ``regex_extract`` kept the inner ``REGEXP_EXTRACT``. Children are
     rewritten first, so a replacement copies operands already rewritten. The
     input is never mutated.
+
+    The walk keeps its own stack, as SQLGlot's does: a chain of a thousand
+    ``AND`` terms is a tree a thousand deep, past Python's recursion limit.
+    Reversing a walk that takes the last child first yields every node after
+    its children, left to right.
     """
+    root = node.copy()
+    stack, walked = [root], list[Expression]()
+    while stack:
+        child = stack.pop()
+        walked.append(child)
+        stack.extend(child.iter_expressions())
 
-    def visit(child: Expression) -> Expression:
-        for key, value in list(child.args.items()):
-            if isinstance(value, Expression):
-                child.set(key, visit(value))
-            elif isinstance(value, list):
-                child.set(key, [visit(v) if isinstance(v, Expression) else v for v in value])
+    for child in reversed(walked):
+        parent, key, index = child.parent, child.arg_key, child.index
+        replacement = rewrite(child)
+        if parent is None or key is None:  # the root, and only the root
+            root = replacement
+        elif replacement is not child:
+            parent.set(key, replacement, index)
 
-        return rewrite(child)
-
-    return visit(node.copy())
+    return root
 
 
 # ....................... #
