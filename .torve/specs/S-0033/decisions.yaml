@@ -1057,12 +1057,14 @@ decisions:
       — with `coercible` never authored, because D24's opt-in is per *entity* and
       the implicit rule is generated for every mapped field. `TransformSpec` gains
       `nullifies`; `nullif` and `json_path` carry it, and so do `split_part` and `regex_extract`
-      on the portable reading (`''` on DuckDB, NULL on Trino — a divergence must not
-      be resolved by whichever engine happens to run). The implicit rule is skipped
-      on such a chain and an **authored** one is refused, because a rule a human wrote
-      and a rule the compiler inferred do not deserve the same treatment. Declared
-      on the transform so the next one added must decide, rather than reintroducing
-      the false positive silently.
+      on the portable reading (DuckDB's engine answers `''` where Trino's answers
+      NULL — a divergence must not be resolved by whichever engine happens to run;
+      the DuckDB port renders `regex_extract`'s NULL since S-0025/D-24). The implicit
+      rule is skipped on such a chain and an **authored** one is refused, because
+      a rule a human wrote and a rule the compiler inferred do not deserve the same
+      treatment. Declared on the transform so the next one added must decide, rather
+      than reintroducing the false positive silently.
+    fingerprint: cfef20b9183a68ce/202c11f3690cefb1
   - id: D-74
     grade: ASSUMED
     text: >-
@@ -1853,10 +1855,10 @@ decisions:
   - id: D-102
     grade: ASSUMED
     text: >-
-      A row whose key part failed its cast is partitioned in the dedupe window by its
-      own identity as well as its key, so it is never another row's duplicate: the
-      partition gains `CASE WHEN <a key part's coercible verdict> THEN <identity> END`
-      per term of the order's identity tail (`_source` on a merged entity, then
+      A row whose key part failed its cast is partitioned in the dedupe window by
+      its own identity as well as its key, so it is never another row's duplicate:
+      the partition gains `CASE WHEN <a key part's coercible verdict> THEN <identity>
+      END` per term of the order's identity tail (`_source` on a merged entity, then
       `_source_row_id`)
     paths:
       - src/bloomery/quality/dedupe.py
@@ -1867,13 +1869,13 @@ decisions:
       Every coercion failure in a key reaches its disposition: two bronze rows with
       different uncastable keys are two quarantined rows, where one was kept and the
       other dropped as a dedupe loser, recorded nowhere. A row re-sent with the same
-      uncastable key is quarantined once per delivery. Rows whose key part is NULL in
-      bronze still share a partition, which this row does not decide
+      uncastable key is quarantined once per delivery. Rows whose key part is NULL
+      in bronze still share a partition, which this row does not decide
     rationale: >-
-      Every failed key coerces to the same NULL, so partitioning by the coerced key alone
-      made unrelated failures duplicates (#315). Partitioning by the raw key text instead
-      would also split clean keys spelled two ways that coerce to one value. A row whose
-      key cannot be read has no key to be a duplicate under, and its identity is already
-      the order's last term, unique by D-21's contract. Replay's winner-per-key is unchanged:
-      a candidate whose key still fails is still quarantined
+      Every failed key coerces to the same NULL, so partitioning by the coerced key
+      alone made unrelated failures duplicates (#315). Partitioning by the raw key
+      text instead would also split clean keys spelled two ways that coerce to one
+      value. A row whose key cannot be read has no key to be a duplicate under, and
+      its identity is already the order's last term, unique by D-21's contract. Replay's
+      winner-per-key is unchanged: a candidate whose key still fails is still quarantined
     cites: [D-6, D-20, D-21, S-0041/D-35]
