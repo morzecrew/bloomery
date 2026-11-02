@@ -50,6 +50,7 @@ __all__ = [
     "utc_from_zone",
     "utc_instant",
     "capture_group",
+    "everywhere",
     "known_type",
     "DialectPort",
     "SQLGlotDialect",
@@ -430,6 +431,33 @@ def capture_group(node: Expression) -> Expression:
         return child
 
     return node.transform(replace)
+
+
+# ....................... #
+
+
+def everywhere(node: Expression, rewrite: Callable[[Expression], Expression]) -> Expression:
+    """``node.transform(rewrite)``, reaching inside what ``rewrite`` replaces.
+
+    ``transform`` does not descend into a node it has replaced, and a rewrite
+    that copies its operand into the replacement carries that operand as it
+    was. So a ``strip_suffix`` of a ``strip_suffix`` kept the inner
+    ``ENDS_WITH`` on PostgreSQL, which defines none, and a ``regex_extract`` of
+    a ``regex_extract`` kept the inner ``REGEXP_EXTRACT``. Children are
+    rewritten first, so a replacement copies operands already rewritten. The
+    input is never mutated.
+    """
+
+    def visit(child: Expression) -> Expression:
+        for key, value in list(child.args.items()):
+            if isinstance(value, Expression):
+                child.set(key, visit(value))
+            elif isinstance(value, list):
+                child.set(key, [visit(v) if isinstance(v, Expression) else v for v in value])
+
+        return rewrite(child)
+
+    return visit(node.copy())
 
 
 # ....................... #

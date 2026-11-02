@@ -45,9 +45,31 @@ CASES: tuple[tuple[str, tuple[object, ...], tuple[str, ...]], ...] = (
     ("regex_extract", ("sku-([0-9]+)", 0), ("sku-42", "nope")),
 )
 
+#: ``(steps, values)`` — a rewritten step nested in another. The rewrite
+#: replaces the outer step's node, and the inner one has to be reached inside
+#: the replacement: unreached, it kept ``ENDS_WITH`` or ``REGEXP_EXTRACT``,
+#: neither of which PostgreSQL defines.
+CHAINS: tuple[tuple[tuple[tuple[str, tuple[object, ...]], ...], tuple[str, ...]], ...] = (
+    ((("strip_suffix", ("-eu",)), ("strip_suffix", ("-eu",))), ("42-eu-eu", "42-eu", "42")),
+    (
+        (("strip_suffix", ("-eu",)), ("regex_extract", ("sku-([0-9]+)", 1))),
+        ("sku-42-eu", "sku-42"),
+    ),
+    (
+        (("regex_extract", ("id=(.*)", 1)), ("regex_extract", ("sku-([0-9]+)", 0))),
+        ("id=sku-42", "id=sku-7"),
+    ),
+)
+
 
 def _sql(transform: str, args: tuple[object, ...], dialect: str) -> str:
-    built = DEFAULT_REGISTRY[transform].builder(exp.column("s"), *args)
+    return _chain_sql(((transform, args),), dialect)
+
+
+def _chain_sql(steps: tuple[tuple[str, tuple[object, ...]], ...], dialect: str) -> str:
+    built: exp.Expression = exp.column("s")
+    for transform, args in steps:
+        built = DEFAULT_REGISTRY[transform].builder(built, *args)
     return get_dialect(dialect).render(canon(built).ast())
 
 
@@ -91,3 +113,24 @@ def test_postgres_spelling_agrees_with_duckdb(
         assert pg_value == duck_value, (
             f"{transform}{args} over {value!r}: duckdb {duck_value!r}, postgres {pg_value!r}"
         )
+
+
+@pytest.mark.parametrize(("steps", "values"), CHAINS, ids=lambda v: str(v)[:60])
+def test_a_nested_step_is_spelled_for_postgres_too(
+    postgres: psycopg.Connection,
+    steps: tuple[tuple[str, tuple[object, ...]], ...],
+    values: tuple[str, ...],
+) -> None:
+    duck = duckdb.connect()
+    for value in values:
+        literal = value.replace("'", "''")
+        duck_value = duck.sql(
+            f"SELECT ({_chain_sql(steps, 'duckdb')}) AS v "  # noqa: S608 — literals are ours
+            f"FROM (SELECT CAST('{literal}' AS VARCHAR) AS s)"
+        ).fetchall()[0][0]
+        row = postgres.execute(
+            f"SELECT ({_chain_sql(steps, 'postgres')}) "  # noqa: S608 — literals are ours
+            f"FROM (SELECT CAST('{literal}' AS TEXT) AS s) AS t"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == duck_value, f"{steps} over {value!r}: duckdb {duck_value!r}, postgres {row[0]!r}"

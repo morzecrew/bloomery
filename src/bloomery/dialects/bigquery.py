@@ -21,6 +21,7 @@ from sqlglot.expressions.core import Expression
 from bloomery.dialects.base import (
     SQLGlotDialect,
     capture_group,
+    everywhere,
     space_separated,
     strip_iso_text,
     utc_from_zone,
@@ -218,7 +219,7 @@ class BigQueryDialect(SQLGlotDialect):
         # Before the guard, which reads the group: the base render restores it
         # too, but only after every port rewrite has already run.
         rewritten = capture_group(rewritten).transform(_expressible_capture_group)
-        rewritten = rewritten.transform(_substr)
+        rewritten = everywhere(rewritten, _substr)
         rewritten = rewritten.transform(_wide_decimal_cast)
         # The replay statements build `CurrentTimestamp` directly to stamp
         # `resolved_at`/`last_evaluated_at`, never through `utc_now`. Here that

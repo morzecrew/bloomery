@@ -4,6 +4,8 @@ feature queries, registry collision/unknown-name behavior."""
 from __future__ import annotations
 
 import importlib
+import itertools
+import re
 from collections.abc import Iterator
 from datetime import datetime
 
@@ -353,6 +355,49 @@ def test_restoring_the_capture_group_does_not_mutate_the_input() -> None:
     DuckDBDialect().render(node)
     assert node.sql() == before
     assert node.find(exp.RegexpExtract).args.get("group") is None  # still the demoted form
+
+
+#: The string steps, each with the arguments a chain gives it. Every port
+#: rewrite of a string function is reachable from one of them.
+_STRING_STEPS: dict[str, tuple[object, ...]] = {
+    "trim": (),
+    "upper": (),
+    "split_part": ("-", 2),
+    "regex_extract": ("id=([0-9]+)", 1),
+    "strip_prefix": ("pre_",),
+    "strip_suffix": ("_sfx",),
+    "enum_map": ("a", "b"),
+}
+
+
+@pytest.mark.parametrize(
+    "name", ["bigquery", "databricks", "duckdb", "postgres", "redshift", "snowflake", "trino"]
+)
+def test_a_step_nested_in_another_is_spelled_as_it_is_alone(name: str) -> None:
+    """A port rewrite replaces a node, and the walk does not descend into the
+    replacement, so a step the rewrite copied in kept the neutral spelling: a
+    `strip_suffix` of a `strip_suffix` read `ENDS_WITH` on PostgreSQL and
+    Redshift, which define none, and a nested `strip_prefix` on Redshift read
+    `LIKE 'pre_' || '%'`, whose `_` is a wildcard. Wherever the inner step
+    occurs in the chain, its rendering alone has to occur in the chain's."""
+    dialect = get_dialect(name)
+
+    def flat(node: exp.Expression) -> str:
+        return re.sub(r"\s+", "", dialect.render(node))
+
+    lost = []
+    for (outer, outer_args), (inner, inner_args) in itertools.product(_STRING_STEPS.items(), repeat=2):
+        step = canon(DEFAULT_REGISTRY[inner].builder(exp.column("s"), *inner_args)).ast()
+        chain = canon(
+            DEFAULT_REGISTRY[outer].builder(
+                DEFAULT_REGISTRY[inner].builder(exp.column("s"), *inner_args), *outer_args
+            )
+        ).ast()
+        occurrences = sum(1 for node in chain.walk() if node == step)
+        if flat(chain).count(flat(step)) < occurrences:
+            lost.append(f"{outer}({inner})")
+
+    assert lost == []
 
 
 # ....................... #
