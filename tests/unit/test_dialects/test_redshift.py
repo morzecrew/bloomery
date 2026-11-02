@@ -298,6 +298,17 @@ def test_a_group_above_the_first_is_refused_not_approximated() -> None:
         _rendered("regex_extract", "(a)-(b)", 2)
 
 
+def test_a_group_above_the_first_is_refused_inside_another_step_too() -> None:
+    """Unreached inside the outer step's replacement, the inner one compiled
+    to `REGEXP_SUBSTR(x, '(a)-(b)', 2)`, with the group read as a start
+    position."""
+    extract = DEFAULT_REGISTRY["regex_extract"].builder
+    chain = extract(extract(exp.column("x"), "(a)-(b)", 2), "(b)", 1)
+
+    with pytest.raises(UnsupportedByTarget, match="capture group 2"):
+        DIALECT.render(canon(chain).ast())
+
+
 def test_the_iso_text_marker_is_stripped() -> None:
     """Redshift's datetime input takes the `T` separator, so the marker adds no
     rewrite on this port — what is left is the offset guard every port carries.

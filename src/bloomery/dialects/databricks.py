@@ -18,6 +18,7 @@ from bloomery.dialects.base import (
     DialectFeature,
     SQLGlotDialect,
     capture_group,
+    everywhere,
     space_separated,
     strip_iso_text,
     utc_from_zone,
@@ -161,7 +162,7 @@ class DatabricksDialect(SQLGlotDialect):
         rewritten = strip_iso_text(rewritten, space_separated, instant=_instant)
         rewritten = utc_from_zone(rewritten, _to_utc)
         rewritten = rewritten.transform(_zoneless_parse)
-        rewritten = rewritten.transform(_regexp_extract)
+        rewritten = everywhere(rewritten, _regexp_extract)
         rewritten = rewritten.transform(_series_table)
         rewritten = rewritten.transform(_date_trunc)
         # The replay statements build `CurrentTimestamp` directly to stamp

@@ -61,6 +61,7 @@ from bloomery.dialects.base import (
     DialectFeature,
     SQLGlotDialect,
     capture_group,
+    everywhere,
     strip_iso_text,
     utc_from_zone,
 )
@@ -154,9 +155,9 @@ class RedshiftDialect(SQLGlotDialect):
         rewritten = strip_iso_text(rewritten, lambda text: text, instant=_instant)
         rewritten = utc_from_zone(rewritten, _convert_timezone)
         rewritten = rewritten.transform(zoneless_parse)
-        rewritten = rewritten.transform(ends_with_as_right)
-        rewritten = rewritten.transform(_starts_with_as_left)
-        rewritten = rewritten.transform(_regexp_substr)
+        rewritten = everywhere(rewritten, ends_with_as_right)
+        rewritten = everywhere(rewritten, _starts_with_as_left)
+        rewritten = everywhere(rewritten, _regexp_substr)
         rewritten = rewritten.transform(_super_cast)
         rewritten = rewritten.transform(_null_if_invalid)
         rewritten = rewritten.transform(_date_spine)

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A transform applied to another transform's output renders for its engine.** On
+  PostgreSQL, a `strip_suffix` or `regex_extract` over a `strip_suffix` or
+  `regex_extract` failed at run time (`function ends_with(text, unknown) does not
+  exist`, and likewise `regexp_extract`), and Redshift failed the same way on a
+  `strip_suffix` of a `strip_suffix`. On Redshift a `strip_prefix` of a `strip_prefix`
+  read the inner prefix through `LIKE`, where `_` and `%` are wildcards, and a
+  `regex_extract` of a `regex_extract` took the inner one's whole match rather than its
+  group. On Databricks the inner `regex_extract` lost its group index and read the
+  engine's default, group 1. Each step now renders as it does alone, and so a nested
+  `regex_extract` naming a group above 1 is refused on Redshift at compile, as a single
+  one is, where it used to compile to a call that read the group as a start position.
 - **`regex_extract` is NULL on DuckDB where the pattern does not match**, as it already
   was on PostgreSQL and Trino, rather than `''`. A `coalesce` or `enum_map` after the
   extract now sees the miss on DuckDB too, so a mapping that falls back to a default

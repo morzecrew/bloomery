@@ -14,6 +14,7 @@ from bloomery.dialects.base import (
     SQLGlotDialect,
     capture_group,
     epoch_timestamps,
+    everywhere,
     known_type,
     pick_spelled,
     strip_iso_text,
@@ -129,7 +130,7 @@ class PostgresDialect(SQLGlotDialect):
         rewritten = pick_spelled(rewritten, _picked)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(zoneless_parse)
-        rewritten = rewritten.transform(_pg_text_functions)
+        rewritten = everywhere(rewritten, _pg_text_functions)
         rewritten = rewritten.transform(_guarded_try_cast)
 
         for identifier in rewritten.find_all(exp.Identifier):
