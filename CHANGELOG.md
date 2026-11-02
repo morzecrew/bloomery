@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read the inner prefix through `LIKE`, where `_` and `%` are wildcards, and a
   `regex_extract` of a `regex_extract` took the inner one's whole match rather than its
   group. On Databricks the inner `regex_extract` lost its group index and read the
-  engine's default, group 1. Each step now renders as it does alone.
+  engine's default, group 1. Each step now renders as it does alone, and so a nested
+  `regex_extract` naming a group above 1 is refused on Redshift at compile, as a single
+  one is, where it used to compile to a call that read the group as a start position.
 
 ## [0.11.0] - 2026-11-01
 
