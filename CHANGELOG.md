@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A spec value YAML cannot build is a `SpecParseError` naming its line.** An unquoted
+  date the calendar does not have, such as `2026-13-01`, a type tag over text it cannot
+  read, such as `!!int ""` or `!!bool maybe`, or a `\U` escape past U+10FFFF raised a
+  bare Python exception out of `load_project` and the CLI. The refusal now names the
+  document and the line, and says to quote the value and drop any `!!` tag if it is
+  meant as text. (#398)
+
 ## [0.11.1] - 2026-11-02
 
 ### Fixed

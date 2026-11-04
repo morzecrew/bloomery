@@ -908,6 +908,57 @@ class _StrictSafeLoader(yaml.SafeLoader):
 
     # ....................... #
 
+    def scan_flow_scalar_non_spaces(self, double: bool, start_mark: yaml.error.Mark) -> list[str]:
+        """A ``\\U`` escape past the last code point is a YAML error, here.
+
+        PyYAML checks that the eight digits are hex and hands them to ``chr``,
+        whose ``ValueError`` (``OverflowError`` past a C int) would cross the
+        loader as itself.
+        """
+        try:
+            return cast(
+                "list[str]",
+                super().scan_flow_scalar_non_spaces(double, start_mark),  # pyright: ignore[reportUnknownMemberType]
+            )
+        except (ValueError, OverflowError):
+            raise yaml.MarkedYAMLError(
+                context="while scanning a double-quoted scalar",
+                context_mark=start_mark,
+                problem="found a \\U escape past U+10FFFF, the last code point",
+                problem_mark=self.get_mark(),
+            ) from None
+
+    # ....................... #
+
+    def construct_object(self, node: yaml.Node, deep: bool = False) -> Any:
+        """A value its YAML type cannot hold is a YAML error at its line.
+
+        The safe loader reads ``2026-13-01`` as a date, and PyYAML's builders
+        check nothing before they read: ``2026-13-01`` raises ``ValueError``,
+        ``!!int ""`` an ``IndexError``, ``!!bool maybe`` a ``KeyError`` and
+        ``!!timestamp x`` an ``AttributeError``. Whatever a builder raises that
+        is not already a YAML error says the value cannot be built, so all of
+        it is caught. A value built from children carries the first child's
+        error, which is a YAML error by then and passes through unwrapped.
+        """
+        try:
+            return super().construct_object(node, deep=deep)  # pyright: ignore[reportUnknownMemberType]
+        except yaml.YAMLError:
+            raise
+        except Exception as exc:  # every builder's failure, as above
+            kind = node.tag.rsplit(":", 1)[-1]
+            value = repr(node.value) if isinstance(node, yaml.ScalarNode) else "the value"
+            reason = f" ({exc})" if isinstance(exc, ValueError) else ""
+            raise yaml.MarkedYAMLError(
+                problem=(
+                    f"cannot read {value} as a YAML {kind}{reason}; if it is text,"
+                    " quote it and drop any !! tag"
+                ),
+                problem_mark=node.start_mark,
+            ) from None
+
+    # ....................... #
+
     def _construct_key(self, node: yaml.Node) -> object:
         """``construct_object`` pinned to ``object`` — types-PyYAML leaves it untyped."""
 
@@ -919,11 +970,14 @@ class _StrictSafeLoader(yaml.SafeLoader):
     # ....................... #
 
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Hashable, Any]:
+        if not isinstance(node, yaml.MappingNode):  # `!!set [a]`: SafeLoader names the node kind
+            return super().construct_mapping(node, deep=deep)
+
         seen: set[object] = set()
 
         for key_node, _value_node in node.value:
             key = self._construct_key(key_node)
-            if isinstance(key, (dict, list)):  # unhashable — SafeLoader rejects later
+            if not isinstance(key, Hashable):  # SafeLoader rejects it below
                 continue
             if key in seen:
                 raise yaml.MarkedYAMLError(

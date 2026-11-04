@@ -3,6 +3,8 @@ strict duplicate-key-rejecting YAML loader."""
 
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from bloomery.errors import SpecParseError
@@ -53,6 +55,67 @@ def test_invalid_yaml_rejected() -> None:
         load_yaml_mapping("a: [unclosed\n", document="d")
     assert excinfo.value.source_path == "d"
     assert "invalid YAML" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("text", "problem", "line"),
+    [
+        # The scheduled fuzz run's reproducer, byte for byte (#398).
+        ('"\\U' + "9" * 79 + "fenumo", "past U+10FFFF", 1),
+        ('a: "\\U00110000"\n', "past U+10FFFF", 1),
+        ("a: 1\nb: 2026-13-01\n", "cannot read '2026-13-01' as a YAML timestamp", 2),
+        ("a: [x, {b: 2026-02-30}]\n", "cannot read '2026-02-30' as a YAML timestamp", 1),
+        ('a: !!int "0x"\n', "cannot read '0x' as a YAML int", 1),
+        ('a: !!int ""\n', "cannot read '' as a YAML int", 1),
+        ("a: !!bool maybe\n", "cannot read 'maybe' as a YAML bool", 1),
+        ("a: 1\nb: !!timestamp x\n", "cannot read 'x' as a YAML timestamp", 2),
+        ("a: !!set [x]\n", "expected a mapping node", 1),
+        # A key is built at once, through its children: the child's refusal
+        # is the one reported, not a second one wrapped around it.
+        ('? [x, !!int ""]\n: y\n', "cannot read '' as a YAML int", 1),
+    ],
+)
+def test_a_value_yaml_cannot_build_is_refused_at_its_line(
+    text: str, problem: str, line: int
+) -> None:
+    """PyYAML hands a ``\\U`` escape to ``chr`` and a scalar to its type's
+    builder unchecked, so ``ValueError`` (``OverflowError`` past a C int on
+    Python 3.12), ``IndexError``, ``KeyError`` and ``AttributeError`` crossed
+    ``load_project`` as themselves (#398). The builder's own words differ
+    between Python versions, so only the refusal's are asserted."""
+    with pytest.raises(SpecParseError) as excinfo:
+        load_yaml_mapping(text, document="d")
+    assert excinfo.value.source_path == "d"
+    assert problem in str(excinfo.value)
+    assert f"line {line}," in str(excinfo.value)
+
+
+_TAGS = ("int", "float", "bool", "null", "timestamp", "binary", "str", "set", "omap", "pairs", "seq", "map")
+_VALUES = ('""', '"-"', '"_"', '"0x"', '"1:x"', "maybe", '"2026-13-01"', "[1]", "[a]", "{a: 1}", "[{a: 1}, 2]")
+_PLACES = ("k: {}\n", "k:\n  - x\n  - {}\n", "? {}\n: x\n", "k: !!set {{? {}}}\n", "<<: {}\nk: 1\n")
+
+
+def test_no_tagged_value_crosses_the_loader_unrefused() -> None:
+    """Every safe tag over text it cannot read, as a value, a list item, a key,
+    a set member and a merge: each loads or is a `SpecParseError`, whatever the
+    builder raised underneath."""
+    escaped = []
+    for place, tag, value in itertools.product(_PLACES, _TAGS, _VALUES):
+        text = place.format(f"!!{tag} {value}")
+        try:
+            load_yaml_mapping(text, document="d")
+        except SpecParseError:
+            pass
+        except Exception as exc:  # the finding this test exists to catch
+            escaped.append(f"{text!r}: {type(exc).__name__}")
+    assert escaped == []
+
+
+def test_the_last_code_point_and_a_quoted_date_still_load() -> None:
+    assert load_yaml_mapping('a: "\\U0010FFFF"\nb: "2026-13-01"\n', document="d") == {
+        "a": "\U0010ffff",
+        "b": "2026-13-01",
+    }
 
 
 def test_non_mapping_root_rejected() -> None:
