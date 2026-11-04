@@ -908,6 +908,47 @@ class _StrictSafeLoader(yaml.SafeLoader):
 
     # ....................... #
 
+    def scan_flow_scalar_non_spaces(self, double: bool, start_mark: yaml.error.Mark) -> list[str]:
+        """A ``\\U`` escape past the last code point is a YAML error, here.
+
+        PyYAML checks that the eight digits are hex and hands them to ``chr``,
+        whose ``ValueError`` (``OverflowError`` past a C int) would cross the
+        loader as itself.
+        """
+        try:
+            return cast(
+                "list[str]",
+                super().scan_flow_scalar_non_spaces(double, start_mark),  # pyright: ignore[reportUnknownMemberType]
+            )
+        except (ValueError, OverflowError):
+            raise yaml.MarkedYAMLError(
+                context="while scanning a double-quoted scalar",
+                context_mark=start_mark,
+                problem="found a \\U escape past U+10FFFF, the last code point",
+                problem_mark=self.get_mark(),
+            ) from None
+
+    # ....................... #
+
+    def construct_object(self, node: yaml.Node, deep: bool = False) -> Any:
+        """A value its YAML type cannot hold is a YAML error at its line.
+
+        The safe loader reads ``2026-13-01`` as a date and ``!!int "0x"`` as an
+        int, and the ``ValueError`` from building either would cross the loader
+        as itself. A value built from children wraps the first child's error
+        and is never wrapped again, since that error is no ``ValueError``.
+        """
+        try:
+            return super().construct_object(node, deep=deep)  # pyright: ignore[reportUnknownMemberType]
+        except ValueError as exc:
+            kind = node.tag.rsplit(":", 1)[-1]
+            raise yaml.MarkedYAMLError(
+                problem=f"{exc}, reading the value as a YAML {kind}; quote it if it is text",
+                problem_mark=node.start_mark,
+            ) from None
+
+    # ....................... #
+
     def _construct_key(self, node: yaml.Node) -> object:
         """``construct_object`` pinned to ``object`` — types-PyYAML leaves it untyped."""
 

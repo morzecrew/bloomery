@@ -55,6 +55,37 @@ def test_invalid_yaml_rejected() -> None:
     assert "invalid YAML" in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    ("text", "problem", "line"),
+    [
+        # The scheduled fuzz run's reproducer, byte for byte (#398).
+        ('"\\U' + "9" * 79 + "fenumo", "past U+10FFFF", 1),
+        ('a: "\\U00110000"\n', "past U+10FFFF", 1),
+        ("a: 1\nb: 2026-13-01\n", "month must be in 1..12", 2),
+        ("a: [x, {b: 2026-02-30}]\n", "day is out of range for month", 1),
+        ('a: !!int "0x"\n', "as a YAML int", 1),
+    ],
+)
+def test_a_value_yaml_cannot_build_is_refused_at_its_line(
+    text: str, problem: str, line: int
+) -> None:
+    """PyYAML hands a ``\\U`` escape to ``chr`` and a date-shaped scalar to
+    ``datetime``, and their ``ValueError`` (``OverflowError`` past a C int on
+    Python 3.12) crossed ``load_project`` as itself (#398)."""
+    with pytest.raises(SpecParseError) as excinfo:
+        load_yaml_mapping(text, document="d")
+    assert excinfo.value.source_path == "d"
+    assert problem in str(excinfo.value)
+    assert f"line {line}," in str(excinfo.value)
+
+
+def test_the_last_code_point_and_a_quoted_date_still_load() -> None:
+    assert load_yaml_mapping('a: "\\U0010FFFF"\nb: "2026-13-01"\n', document="d") == {
+        "a": "\U0010ffff",
+        "b": "2026-13-01",
+    }
+
+
 def test_non_mapping_root_rejected() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         load_yaml_mapping("- just\n- a list\n", document="d")
