@@ -933,17 +933,27 @@ class _StrictSafeLoader(yaml.SafeLoader):
     def construct_object(self, node: yaml.Node, deep: bool = False) -> Any:
         """A value its YAML type cannot hold is a YAML error at its line.
 
-        The safe loader reads ``2026-13-01`` as a date and ``!!int "0x"`` as an
-        int, and the ``ValueError`` from building either would cross the loader
-        as itself. A value built from children wraps the first child's error
-        and is never wrapped again, since that error is no ``ValueError``.
+        The safe loader reads ``2026-13-01`` as a date, and PyYAML's builders
+        check nothing before they read: ``2026-13-01`` raises ``ValueError``,
+        ``!!int ""`` an ``IndexError``, ``!!bool maybe`` a ``KeyError`` and
+        ``!!timestamp x`` an ``AttributeError``. Whatever a builder raises that
+        is not already a YAML error says the value cannot be built, so all of
+        it is caught. A value built from children carries the first child's
+        error, which is a YAML error by then and passes through unwrapped.
         """
         try:
             return super().construct_object(node, deep=deep)  # pyright: ignore[reportUnknownMemberType]
-        except ValueError as exc:
+        except yaml.YAMLError:
+            raise
+        except Exception as exc:  # every builder's failure, as above
             kind = node.tag.rsplit(":", 1)[-1]
+            value = repr(node.value) if isinstance(node, yaml.ScalarNode) else "the value"
+            reason = f" ({exc})" if isinstance(exc, ValueError) else ""
             raise yaml.MarkedYAMLError(
-                problem=f"{exc}, reading the value as a YAML {kind}; quote it if it is text",
+                problem=(
+                    f"cannot read {value} as a YAML {kind}{reason}; if it is text,"
+                    " quote it and drop any !! tag"
+                ),
                 problem_mark=node.start_mark,
             ) from None
 
@@ -960,11 +970,14 @@ class _StrictSafeLoader(yaml.SafeLoader):
     # ....................... #
 
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Hashable, Any]:
+        if not isinstance(node, yaml.MappingNode):  # `!!set [a]`: SafeLoader names the node kind
+            return super().construct_mapping(node, deep=deep)
+
         seen: set[object] = set()
 
         for key_node, _value_node in node.value:
             key = self._construct_key(key_node)
-            if isinstance(key, (dict, list)):  # unhashable — SafeLoader rejects later
+            if not isinstance(key, Hashable):  # SafeLoader rejects it below
                 continue
             if key in seen:
                 raise yaml.MarkedYAMLError(
