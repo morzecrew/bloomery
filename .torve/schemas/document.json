@@ -1030,6 +1030,21 @@
       "title": "Docs",
       "type": "string"
     },
+    "fixes": {
+      "description": "The issues the document's pull request closes: a number in this repository,\nor `owner/repo#N` in another.",
+      "items": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "title": "Fixes",
+      "type": "array"
+    },
     "goals": {
       "default": "",
       "description": "What the document sets out to make true.",

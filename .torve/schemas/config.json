@@ -154,13 +154,19 @@
     },
     "IntakeConfig": {
       "additionalProperties": false,
-      "description": "The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's\ndecomposition ceiling \u2014 how many contracts one request may yield;\n`iterations` bounds the draft-lint loop like any attempt budget.\n`document_threshold` is the document-threshold rule's starting point \u2014\nthe number of distinct documents whose settled ground a scope must\ncross before the work needs one of its own (S-0030 S-0030/D-3), a\ncalibration knob rather than a truth.",
+      "description": "The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's\ndecomposition ceiling \u2014 how many contracts one request may yield;\n`iterations` bounds the draft-lint loop like any attempt budget.\n`document_threshold` is the document-threshold rule's starting point \u2014\nthe number of distinct documents whose settled ground a scope must\ncross before the work needs one of its own (S-0030 S-0030/D-3), a\ncalibration knob rather than a truth. `issue_label` is the pass's one\nswitch (S-0119/D-1): empty, the intake leg reads nothing and builds no\ndrafting agent, so an adopter that sets nothing gets today's pass.",
       "properties": {
         "document_threshold": {
           "default": 2,
           "description": "The document-threshold rule's starting point \u2014 the number of distinct documents\nwhose settled ground a scope must cross before the work needs one of its own (S-0030\nS-0030/D-3), a calibration knob rather than a truth.",
           "title": "Document Threshold",
           "type": "integer"
+        },
+        "issue_label": {
+          "default": "",
+          "description": "The label the pass's intake leg drafts from (S-0119/D-1). Empty, the default,\nturns the leg off and builds no drafting agent.",
+          "title": "Issue Label",
+          "type": "string"
         },
         "iterations": {
           "default": 3,
@@ -319,6 +325,14 @@
           "description": "Dollars the night may burn across every task before it closes; 0 leaves the\ndollar axis unbounded, and both axes at 0 is refused.",
           "title": "Budget Usd",
           "type": "number"
+        },
+        "engine_paths": {
+          "description": "Globs, in the grammar a contract's scope uses, naming the files that make up\nthe engine. Empty, the default, turns the engine check off, so a repository that\nnames nothing serves exactly as before. When a chain's between-night fast-forward\ncrosses a change to one of them, the engine has moved and the chain ends so a\nlauncher can install the new one.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Engine Paths",
+          "type": "array"
         },
         "minutes": {
           "default": 480,
@@ -1141,6 +1155,12 @@
           },
           "title": "Retry Variants",
           "type": "object"
+        },
+        "revision_variant": {
+          "default": "",
+          "description": "S-0117/D-1: the dotted tier a surviving review blocker's revision resolves to \u2014\none rung, as `retry_variant` is after a gate-red. Empty, the default, keeps the\nrevision on the seat. A value naming no configured tier is refused at load.",
+          "title": "Revision Variant",
+          "type": "string"
         },
         "route": {
           "default": "",
