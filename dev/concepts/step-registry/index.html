@@ -895,6 +895,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What a manifest declares">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#an-optional-input" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        An optional input
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2046,6 +2063,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What a manifest declares">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#an-optional-input" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        An optional input
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2387,6 +2421,42 @@ Extra columns pass. Two things are not checked: a relation the project does not
 declare, such as a silver table kept outside bloomery, and a reserved column
 name like <code>_source_row_id</code>, whose presence depends on the relation's quality
 configuration.</p>
+<h3 id="an-optional-input">An optional input<a class="headerlink" href="#an-optional-input" title="Permanent link">&para;</a></h3>
+<p>An input a project may not have is declared <code>optional: true</code>, with the type of
+each column the step reads under <code>columns:</code> in place of <code>requires:</code>. Only a
+<code>sql_model</code> declares one.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">lines</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="nv">order_line</span><span class="p p-Indicator">,</span><span class="nt"> requires</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">product_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">quantity</span><span class="p p-Indicator">]}</span>
+<span class="w">  </span><span class="nt">returns</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">return_line</span>
+<span class="w">    </span><span class="nt">optional</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">columns</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">product_id</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>The body reads an optional input by the input's name, so the same text works
+whether a wiring binds it or not:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">product_id</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">l</span><span class="p">.</span><span class="n">quantity</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">MAX</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="n">quantity</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">units</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">silver</span><span class="p">.</span><span class="n">order_line</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">l</span>
+<span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="k">returns</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">product_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">product_id</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">l</span><span class="p">.</span><span class="n">product_id</span>
+</code></pre></div>
+<p>A wiring that binds <code>returns</code> makes each such read the relation it binds,
+through the naming policy. That relation must carry every declared column, with
+a type assignable to the declared one, as <code>decimal(10,2)</code> is to
+<code>decimal(14,3)</code>. A wiring that leaves it out makes each read an empty relation
+of the declared columns, cast to their types as the target spells them, so
+the join finds nothing and the body needs no conditionals. A body that never
+reads the input by its name is refused whether it is bound or not, as is a
+body whose CTE of that name hides every read of it. A CTE hides the name only
+where it is in scope, as in SQL.</p>
+<p>A read may alias the input, but not rename its columns with a column list
+(<code>returns AS r(pid, qty)</code>): the list renames by position, and the bound
+relation's columns are in its own order while the empty relation's are in the
+declared one. A <code>vector</code> column cannot be declared, since nothing casts a NULL
+to a vector. A wiring that binds the input to a bare relation name, such as
+<code>returns: return_line</code>, is refused when the body has a CTE of that name, since
+the read would then name the CTE; bind it qualified, as <code>silver.return_line</code>.</p>
+<p>Binding or unbinding an optional input restates the step's outputs, as
+rewiring any input does. An unbound input has no edge in lineage.</p>
 <h2 id="what-a-spec-wires">What a spec wires<a class="headerlink" href="#what-a-spec-wires" title="Permanent link">&para;</a></h2>
 <p>Wiring, and nothing else:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">steps_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
