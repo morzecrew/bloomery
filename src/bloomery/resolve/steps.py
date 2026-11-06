@@ -867,6 +867,40 @@ def _check_placeholders(
 # ....................... #
 
 
+def _fold(identifier: exp.Identifier) -> str:
+    """An identifier as SQL compares it: a quoted one exactly, an unquoted one
+    folded."""
+    return identifier.name if identifier.quoted else identifier.name.lower()
+
+
+def _ctes_in_scope(node: Expression) -> set[str]:
+    """The CTE names ``node`` can see, folded: each CTE of an enclosing query's
+    ``WITH``, and inside a CTE's own definition only those before it, unless
+    the ``WITH`` is recursive. A CTE in a nested query is not in scope outside
+    it."""
+    visible: set[str] = set()
+    child: object = node  # compared by identity alone
+    parent = node.parent
+
+    while parent is not None:
+        if isinstance(parent, exp.With):
+            ctes = parent.expressions
+            # Its `search` clause sees every CTE, as the query after it does.
+            index = next((i for i, cte in enumerate(ctes) if cte is child), len(ctes))
+            seen = ctes if parent.args.get("recursive") else ctes[:index]
+        elif isinstance(with_ := parent.args.get("with_"), exp.With) and child is not with_:
+            seen = with_.expressions
+        else:
+            seen = []
+        visible |= {_fold(cte.args["alias"].this) for cte in seen}
+        child, parent = parent, parent.parent
+
+    return visible
+
+
+# ....................... #
+
+
 def _read_optional_inputs(
     wiring: StepWiring, manifest: StepManifest, tree: Expression
 ) -> tuple[Expression, list[BloomeryError]]:
@@ -876,9 +910,9 @@ def _read_optional_inputs(
 
     By its name, because nothing else marks a table as the input once no
     wiring binds it: a required input is found by the relation it is bound to,
-    and an unbound one has none. A bare name that is one of the body's CTEs is
-    the CTE, as it is for a bound input. The read keeps the input's name as its
-    alias, so a column qualified by the name still resolves.
+    and an unbound one has none. A bare name that a CTE in scope defines is the
+    CTE (:func:`_ctes_in_scope`). The read keeps its alias, or takes the
+    input's name as one, so a column qualified by either still resolves.
 
     A body that never reads the input by name is refused, bound or not, so a
     body that works only while bound is found by the project that binds it.
@@ -892,27 +926,28 @@ def _read_optional_inputs(
     if not optional:
         return tree, []
 
-    ctes = {cte.alias.lower() for cte in tree.find_all(exp.CTE)}
-
     def named(node: exp.Table) -> str | None:
         """The optional input a bare table names, if it names one. An unquoted
         name folds, as SQL folds it."""
         identifier = node.this
         if node.db or node.catalog or not isinstance(identifier, exp.Identifier):
             return None
-        folded = (lambda text: text) if identifier.quoted else str.lower
+        spelled = _fold(identifier)
+        if spelled in _ctes_in_scope(node):
+            return None
         return next(
             (
                 name
                 for name in sorted(optional)
-                if folded(name) == folded(identifier.name) and name.lower() not in ctes
+                if (name if identifier.quoted else name.lower()) == spelled
             ),
             None,
         )
 
-    read = {name for node in tree.find_all(exp.Table) if (name := named(node)) is not None}
+    reads = [(name, node) for node in tree.find_all(exp.Table) if (name := named(node)) is not None]
+    errors: list[BloomeryError] = []
 
-    if unread := sorted(set(optional) - read):
+    if unread := sorted(set(optional) - {name for name, _node in reads}):
         msg = (
             f"step {wiring.use!r} declares input(s) {', '.join(unread)} optional, but its body "
             f"never reads a table named {', '.join(unread)}. An optional input is read where "
@@ -920,7 +955,10 @@ def _read_optional_inputs(
             "naming the relation a wiring binds instead would read a table that may not "
             f"exist (S-0034/D-61). Fix: read it as FROM {unread[0]}"
         )
-        return tree, [StepError(msg, source_path=_path(wiring))]
+        errors.append(StepError(msg, source_path=_path(wiring)))
+
+    if errors:
+        return tree, errors
 
     def replaced(node: Expression) -> Expression:
         name = named(node) if isinstance(node, exp.Table) else None

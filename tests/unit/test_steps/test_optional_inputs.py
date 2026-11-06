@@ -282,6 +282,9 @@ def test_a_bound_optional_input_s_columns_must_take_its_types(
         # A quoted name in another case is another relation on a case-sensitive engine.
         'SELECT l.product_id, 0 AS units FROM silver.order_line AS l '
         'LEFT JOIN "RETURNS" AS r ON r.product_id = l.product_id',
+        # An outer CTE is in scope in a subquery, and an unquoted one folds.
+        "WITH Returns AS (SELECT 'a' AS product_id) SELECT l.product_id, 0 AS units "
+        "FROM silver.order_line AS l WHERE EXISTS (SELECT 1 FROM returns)",
     ],
 )
 def test_a_body_must_read_an_optional_input_by_its_name(body: str) -> None:
@@ -289,6 +292,26 @@ def test_a_body_must_read_an_optional_input_by_its_name(body: str) -> None:
     the project that binds it."""
     with pytest.raises(StepError, match=r"never reads a table named returns"):
         build_project_ir(project(returns=True), steps=registry(body))
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # A CTE nested in a subquery is not in scope outside it.
+        BODY + " HAVING EXISTS (WITH returns AS (SELECT 1 AS x) SELECT x FROM returns)",
+        # A quoted CTE in another case is another name.
+        'WITH "RETURNS" AS (SELECT 1 AS x) ' + BODY,
+        # A CTE's own definition does not see it, unless the WITH is recursive.
+        "WITH returned AS (SELECT * FROM returns), returns AS (SELECT * FROM returned) "
+        + BODY.replace("LEFT JOIN returns AS r", "LEFT JOIN returned AS r"),
+    ],
+)
+def test_a_cte_hides_the_input_only_where_it_is_in_scope(body: str) -> None:
+    artifacts = compile_project(
+        project(returns=False), target=Target.SQLMESH, dialect="duckdb", steps=registry(body)
+    )
+    model = flat(next(a.content for a in artifacts if a.path.endswith("/net_units.sql")))
+    assert "_blm_empty" in model
 
 
 # ....................... #
