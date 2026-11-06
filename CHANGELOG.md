@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A string step parameter can list the values it takes.** A manifest declares
+  `allocate: {type: string, values: [none, revenue, units], default: none}`, and a value
+  outside the list, such as `allocate: revenu`, is refused with a `StepError` that names
+  the allowed values, whether a step wiring sets it or a field mapping or repair recipe
+  calling a `sql_macro` does. Before, a misspelled value compiled and the
+  step ran whichever branch its body fell through to. A manifest is refused if its
+  `default` is not one of its `values`, or if a parameter that is not a `string` declares
+  them. (#403)
 - **A step input can be optional, so one step serves projects with and without a
   source.** A `sql_model` declares it `optional: true` with typed `columns:`,
   and a wiring may leave it out. The body reads it by name, as the bound relation,

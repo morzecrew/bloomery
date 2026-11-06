@@ -81,6 +81,13 @@ A `StepParameter` bounds its value with optional, inclusive `min` and `max`, bot
 - Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py`
 - Consequence: A platform team states a parameter's range once and every tenant wiring that leaves it is refused before a run, while a default outside the range passes unchecked
 
+### S-0034/D-60 — `ASSUMED` (The step registry: referenced implementations)
+
+A `string` parameter may declare `values`, a non-empty list of the names it may take. A value that is not one of them is refused at compile with a `StepError` listing them, wherever it is set: in a step wiring, in the pass that refuses an out-of-bounds number, and at a `sql_macro`'s call site in a field mapping or a repair recipe, where its parameters become literals. A manifest declaring `values` on any other type, or a `default` that is not one of them, is refused at parse. The value is compared as the text the IR records, and substitution is unchanged: the placeholder still becomes a string literal
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py` `tests/unit/test_steps/test_macro_fields.py` `tests/unit/test_quality/test_repair.py`
+- Consequence: A parameter that picks one of a few behaviours is written by name, `allocate: units`, and a typo is a compile error rather than the body's fall-through branch. Changing the value restates the outputs as any parameter change does. Unlike D-58's bounds, the default is checked
+
 ### S-0034/D-61 — `ASSUMED` (The step registry: referenced implementations)
 
 A `sql_model` input may be declared `optional: true` with typed `columns:`, and a wiring may leave it unbound. The body reads an optional input by the input's name, as a bare table that no CTE in scope defines, and a body that never does is refused bound or not, as is a read whose alias renames its columns by position. Unbound, each such read becomes an empty relation of the declared columns cast to their types; bound, the relation the wiring binds, whose columns must include every declared one with a type assignable to it. An optional input declares no `requires` and no vector column, a required one no `columns`, and no other kind declares an optional input

@@ -276,6 +276,17 @@ def test_a_recipe_taking_more_than_the_value_it_repairs_is_refused() -> None:
         compile_silver(steps=two_column)
 
 
+def test_a_recipe_parameter_outside_its_values_is_refused() -> None:
+    """A recipe is a macro, so its manifest's ``values`` hold here too (D-60)."""
+    steps = registry(
+        body=f"CASE WHEN :mode = 'strip' THEN TRANSLATE(:value, '{ZWSP}', '') ELSE :value END",
+        parameters={"mode": {"type": "string", "values": ["strip", "keep"], "default": "strip"}},
+    )
+    typo = MAPPING.replace("fallback: quarantine}", "fallback: quarantine, parameters: {mode: strp}}")
+    with pytest.raises(StepError, match=r"'strp', which is not one of strip, keep"):
+        compile_silver(typo, steps)
+
+
 def test_two_repair_rules_on_one_column_are_refused() -> None:
     """Both rewrite the column in the same projection, so which value survives
     would depend on the order they happened to be written in — and the second

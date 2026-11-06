@@ -859,7 +859,7 @@ and the three tiers.
 | `use` | `ref@version` | yes | `^[a-z][a-z0-9_]*@[1-9][0-9]*$`. One wiring per `ref` — a version bump is that step changing, not a second step |
 | `outputs` | map name → relation | yes, ≥ 1 | Binds each declared output to a relation it writes |
 | `inputs` | map name → relation | no (`{}`) | Binds each declared input to a relation it reads. An input the manifest declares optional may be left out, and the body then reads an empty relation of its declared columns |
-| `parameters` | map name → string / int / bool / decimal | no (`{}`) | Tunables the manifest declares, within the bounds it declares |
+| `parameters` | map name → string / int / bool / decimal | no (`{}`) | Tunables the manifest declares, within the bounds and among the values it declares |
 | `seed` | int | no | Required for a `seeded` step, refused for the other two tiers |
 | `quality` | list of expression rules | no (`[]`) | `expression` rules only; see [Entity quality rules](#entity-quality-rules) for the shape |
 | `applies_to` | map rule name → output | no (`{}`) | Which output each rule applies to. Required for every declared rule — a step has several outputs, so "on this step" cannot be lowered |
