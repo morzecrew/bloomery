@@ -365,6 +365,13 @@ A relationship's endpoint may be a step output, named by the bare relation the s
 - Paths: `src/bloomery/resolve/refs.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/quality.py` `tests/unit/test_steps/test_step_relationships.py`
 - Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report. Two authored entities whose referential rules join each other, which compiled to a pair of models each reading the other, are refused too
 
+### S-0034/D-61 — `ASSUMED` (The step registry: referenced implementations)
+
+A `sql_model` input may be declared `optional: true` with typed `columns:`, and a wiring may leave it unbound. The body reads an optional input by the input's name, as a bare table that is not one of its CTEs, and a body that never does is refused bound or not. Unbound, each such read becomes an empty relation of the declared columns cast to their types; bound, the relation the wiring binds, whose columns must include every declared one with a type assignable to it. An optional input declares no `requires`, a required one no `columns`, and no other kind declares an optional input
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_optional_inputs.py` `tests/execution/test_optional_step_inputs.py` `pages/docs/concepts/step-registry.md`
+- Consequence: One step serves projects with and without a source, from one body with no conditionals, where it took one manifest per combination of inputs. Binding or unbinding the input changes the step's inputs and its lowered body, so `plan()` restates the outputs as for a rewired input, and lineage has no edge from an input nothing binds
+
 ### S-0035/D-10 — `ASSUMED` (Public surface and stability policy)
 
 **The `TYPE_CHECKING` guard is lifted on public signatures before the closure test lands.** `typing.get_type_hints` currently raises `NameError` on 7 of the 29 exports, including `compile_project`, because `from __future__ import annotations` plus a `TYPE_CHECKING`-only import leaves the annotation naming something absent at run time. Decision 1's enforcement is unimplementable until those names are importable at run time — a prerequisite the design did not see, found by running the proposed walk rather than by reading it. Guards on internal signatures are untouched.

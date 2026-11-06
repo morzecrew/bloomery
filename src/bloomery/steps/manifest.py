@@ -115,6 +115,45 @@ class StepInput(SpecModel):
 
     grain: str
     requires: tuple[str, ...] = ()
+    #: A wiring may leave an optional input unbound, and the body then reads an
+    #: empty relation of ``columns`` wherever it names the input (S-0034/D-61).
+    optional: bool = False
+    #: An optional input's columns and their types: what a bound relation must
+    #: carry, and what the empty relation an unbound one reads as is made of.
+    columns: dict[str, TypeString] = Field(default_factory=dict[str, TypeString])
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _columns_type_an_optional_input(self) -> Self:
+        """An empty relation needs its types, and only an optional input is
+        ever read as one; ``requires`` beside ``columns`` would be a second list
+        of the same columns to keep in step."""
+
+        if self.optional and not self.columns:
+            msg = (
+                "an optional input declares no columns; unbound, it reads as an empty "
+                "relation of them, which needs their types. Fix: declare columns: "
+                "{name: type} for every column the step reads"
+            )
+            raise ValueError(msg)
+
+        if self.columns and not self.optional:
+            msg = (
+                "columns: types the empty relation an unbound input reads as, and only an "
+                "optional input is ever unbound. Fix: name the columns under requires:, "
+                "or declare the input optional: true"
+            )
+            raise ValueError(msg)
+
+        if self.optional and self.requires:
+            msg = (
+                "an optional input declares requires, but its columns are what it requires. "
+                "Fix: list every column under columns: alone"
+            )
+            raise ValueError(msg)
+
+        return self
 
 
 # ....................... #
@@ -291,6 +330,25 @@ class StepManifest(SpecModel):
             msg = (
                 f"{', '.join(both)} is declared as both an accepted column and a "
                 "parameter; one placeholder cannot be filled by two things"
+            )
+            raise ValueError(msg)
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _optional_inputs_are_read_by_a_sql_model(self) -> Self:
+        """An unbound input is substituted where a SQL body names it. A
+        python_model's wrapper reads every input from a bound relation, so it
+        has nothing to substitute into."""
+        optional = sorted(name for name, declared in self.inputs.items() if declared.optional)
+
+        if optional and self.kind != "sql_model":
+            msg = (
+                f"a {self.kind} declares optional input(s) {', '.join(optional)}, which only a "
+                "sql_model reads: an unbound input reads as an empty relation where the "
+                "body names it, and only a sql_model has a body that names its inputs"
             )
             raise ValueError(msg)
 

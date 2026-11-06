@@ -131,6 +131,13 @@ A relationship's endpoint may be a step output, named by the bare relation the s
 - Paths: `src/bloomery/resolve/refs.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/quality.py` `tests/unit/test_steps/test_step_relationships.py`
 - Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report. Two authored entities whose referential rules join each other, which compiled to a pair of models each reading the other, are refused too
 
+### S-0034/D-61 — `ASSUMED` (The step registry: referenced implementations)
+
+A `sql_model` input may be declared `optional: true` with typed `columns:`, and a wiring may leave it unbound. The body reads an optional input by the input's name, as a bare table that is not one of its CTEs, and a body that never does is refused bound or not. Unbound, each such read becomes an empty relation of the declared columns cast to their types; bound, the relation the wiring binds, whose columns must include every declared one with a type assignable to it. An optional input declares no `requires`, a required one no `columns`, and no other kind declares an optional input
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_optional_inputs.py` `tests/execution/test_optional_step_inputs.py` `pages/docs/concepts/step-registry.md`
+- Consequence: One step serves projects with and without a source, from one body with no conditionals, where it took one manifest per combination of inputs. Binding or unbinding the input changes the step's inputs and its lowered body, so `plan()` restates the outputs as for a rewired input, and lineage has no edge from an input nothing binds
+
 ### S-0035/D-3 — `ASSUMED` (Public surface and stability policy)
 
 **`assert_step_contract` is promoted to `bloomery.steps.__all__`** and the generated wrapper's import rewritten to the shallow path. The module path was de-facto public API — imported by bloomery's own artifacts shipped into consumer repositories — with no declaration and no test protecting it. `bloomery.steps.contract` keeps working; this adds a supported path rather than removing an unsupported one. A golden assertion pins the emitted import line.

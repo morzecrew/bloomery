@@ -57,7 +57,8 @@ from bloomery.spec.common import (
     sql_depth,
 )
 from bloomery.steps import EMPTY_REGISTRY
-from bloomery.typing import parse_type
+from bloomery.transforms.registry import neutral_type
+from bloomery.typing import assignable, parse_type
 
 if TYPE_CHECKING:
     from sqlglot.expressions.core import Expression
@@ -163,12 +164,14 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 
-    missing_inputs = sorted(set(manifest.inputs) - set(wiring.inputs))
+    required = {name for name, declared in manifest.inputs.items() if not declared.optional}
+    missing_inputs = sorted(required - set(wiring.inputs))
 
     if missing_inputs:
         msg = (
             f"step {wiring.use!r} does not bind input(s) {', '.join(missing_inputs)} the "
-            "manifest declares; the step reads them, so there is nothing to read from"
+            "manifest declares; the step reads them, so there is nothing to read from. "
+            "Only an input the manifest declares optional may be left out (S-0034/D-61)"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 
@@ -529,15 +532,16 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
 # ....................... #
 
 
-def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, frozenset[str]]:
-    """The columns of every relation a step input can bind, by the bare name
-    the naming policy reads (S-0034/D-57): a declared entity's fields, and a
-    step output's ``produces``. A relation the project does not declare is
-    absent — a silver table kept outside bloomery is legal, and its columns
-    are nobody's to know here."""
+def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, dict[str, str]]:
+    """The columns of every relation a step input can bind, with their declared
+    types, by the bare name the naming policy reads (S-0034/D-57): a declared
+    entity's fields, and a step output's ``produces``. A relation the project
+    does not declare is absent — a silver table kept outside bloomery is legal,
+    and its columns are nobody's to know here."""
 
     columns = {
-        name: frozenset(entity.fields) for name, entity in project.entity_model.entities.items()
+        name: {field_name: field.type for field_name, field in entity.fields.items()}
+        for name, entity in project.entity_model.entities.items()
     }
 
     for wiring in project.steps.steps if project.steps is not None else ():
@@ -550,7 +554,9 @@ def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, fro
             output = manifest.outputs.get(name)
 
             if output is not None:
-                columns[_emitted_name(relation)] = frozenset(output.produces)
+                columns[_emitted_name(relation)] = {
+                    column: produced.type for column, produced in output.produces.items()
+                }
 
     return columns
 
@@ -559,7 +565,7 @@ def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, fro
 
 
 def _check_input_columns(
-    wiring: StepWiring, manifest: StepManifest, relations: dict[str, frozenset[str]]
+    wiring: StepWiring, manifest: StepManifest, relations: dict[str, dict[str, str]]
 ) -> list[BloomeryError]:
     """Every column a step input ``requires`` is on the relation the wiring
     binds, where the project knows that relation (S-0034/D-57).
@@ -568,7 +574,12 @@ def _check_input_columns(
     step reading a column that is not there, which the engine would find at
     run time and this finds at compile. A reserved name is not checked: the
     generated and ingestion columns a silver relation carries depend on its
-    quality configuration, which is the lowering's to decide.
+    quality configuration, which the lowering decides.
+
+    An optional input's ``columns`` are what it requires, and their types too
+    (S-0034/D-61): the body is one text for the bound relation and for the
+    empty one, so each bound column has to be assignable to the declared type
+    the empty relation is cast to.
     """
     errors: list[BloomeryError] = []
 
@@ -579,7 +590,9 @@ def _check_input_columns(
         if declared is None or columns is None:
             continue  # an undeclared input is `_check_bindings`'s; an unknown relation passes
 
-        missing = sorted(set(declared.requires) - columns - set(RESERVED_MEMBER_REASONS))
+        errors.extend(_check_input_types(wiring, name, bound, declared.columns, columns))
+        required = set(declared.requires) | set(declared.columns)
+        missing = sorted(required - columns.keys() - set(RESERVED_MEMBER_REASONS))
 
         if missing:
             msg = (
@@ -595,8 +608,41 @@ def _check_input_columns(
 # ....................... #
 
 
+def _check_input_types(
+    wiring: StepWiring,
+    name: str,
+    bound: str,
+    declared: dict[str, str],
+    columns: dict[str, str],
+) -> list[BloomeryError]:
+    """Each column an optional input declares, against the type the bound
+    relation gives it, where it has the column at all."""
+    errors: list[BloomeryError] = []
+    where = _path(wiring)
+
+    for column, text in sorted(declared.items()):
+        actual = columns.get(column)
+        if actual is None:
+            continue  # missing, which the caller reports
+        bound_type, declared_type = (parse_type(t, source_path=where) for t in (actual, text))
+        if not assignable(bound_type, declared_type):
+            msg = (
+                f"step {wiring.use!r} input {name!r} declares column {column} as {text}, but "
+                f"column {column} is {actual} on {bound!r}. The body reads the bound relation "
+                "and the empty one an unbound input reads as alike, so the column has to "
+                f"take the declared type (S-0034/D-61). Fix: bind a relation whose {column} "
+                f"is {text}, or widen the declared type"
+            )
+            errors.append(StepError(msg, source_path=where))
+
+    return errors
+
+
+# ....................... #
+
+
 def _check_relationship_columns(
-    project: Project, relations: dict[str, frozenset[str]]
+    project: Project, relations: dict[str, dict[str, str]]
 ) -> list[BloomeryError]:
     """A relationship naming a step output has its ``via`` columns checked
     here, on both sides (S-0034/D-59).
@@ -816,6 +862,91 @@ def _check_placeholders(
         errors.append(StepError(msg, source_path=_path(wiring)))
 
     return errors
+
+
+# ....................... #
+
+
+def _read_optional_inputs(
+    wiring: StepWiring, manifest: StepManifest, tree: Expression
+) -> tuple[Expression, list[BloomeryError]]:
+    """A Tier 2 body with each table naming an optional input by the input's
+    name replaced by what it reads (S-0034/D-61): the relation the wiring binds,
+    or, unbound, an empty relation of the declared columns.
+
+    By its name, because nothing else marks a table as the input once no
+    wiring binds it: a required input is found by the relation it is bound to,
+    and an unbound one has none. A bare name that is one of the body's CTEs is
+    the CTE, as it is for a bound input. The read keeps the input's name as its
+    alias, so a column qualified by the name still resolves.
+
+    A body that never reads the input by name is refused, bound or not, so a
+    body that works only while bound is found by the project that binds it.
+
+    The empty relation is cast to the declared types, which the dialect spells
+    at emit, and it has a ``FROM`` so the ``WHERE`` is legal on an engine that
+    refuses one without.
+    """
+    optional = {name: declared for name, declared in manifest.inputs.items() if declared.optional}
+
+    if not optional:
+        return tree, []
+
+    ctes = {cte.alias.lower() for cte in tree.find_all(exp.CTE)}
+
+    def named(node: exp.Table) -> str | None:
+        """The optional input a bare table names, if it names one. An unquoted
+        name folds, as SQL folds it."""
+        identifier = node.this
+        if node.db or node.catalog or not isinstance(identifier, exp.Identifier):
+            return None
+        folded = (lambda text: text) if identifier.quoted else str.lower
+        return next(
+            (
+                name
+                for name in sorted(optional)
+                if folded(name) == folded(identifier.name) and name.lower() not in ctes
+            ),
+            None,
+        )
+
+    read = {name for node in tree.find_all(exp.Table) if (name := named(node)) is not None}
+
+    if unread := sorted(set(optional) - read):
+        msg = (
+            f"step {wiring.use!r} declares input(s) {', '.join(unread)} optional, but its body "
+            f"never reads a table named {', '.join(unread)}. An optional input is read where "
+            "the body names it, and unbound it reads as an empty relation there, so a body "
+            "naming the relation a wiring binds instead would read a table that may not "
+            f"exist (S-0034/D-61). Fix: read it as FROM {unread[0]}"
+        )
+        return tree, [StepError(msg, source_path=_path(wiring))]
+
+    def replaced(node: Expression) -> Expression:
+        name = named(node) if isinstance(node, exp.Table) else None
+        if name is None:
+            return node
+        alias = exp.TableAlias(this=(node.args["alias"].this if node.alias else node.this).copy())
+        bound = wiring.inputs.get(name)
+        if bound is not None:
+            relation = exp.to_table(bound)
+            relation.set("alias", alias)
+            return relation
+        where = _path(wiring)
+        empty = exp.select(
+            *(
+                exp.alias_(
+                    exp.cast(exp.null(), neutral_type(parse_type(text, source_path=where))), column
+                )
+                for column, text in sorted(optional[name].columns.items())
+            )
+        )
+        return exp.Subquery(
+            this=exp.select("*").from_(empty.subquery("_blm_empty")).where(exp.false()),
+            alias=alias,
+        )
+
+    return tree.transform(replaced), []
 
 
 # ....................... #
@@ -1097,6 +1228,11 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             placeholder_errors = _check_placeholders(wiring, manifest, tree, resolved)
             errors.extend(placeholder_errors)
             if placeholder_errors:
+                claimed.extend(_claims(wiring))
+                continue
+            tree, read_errors = _read_optional_inputs(wiring, manifest, tree)
+            errors.extend(read_errors)
+            if read_errors:
                 claimed.extend(_claims(wiring))
                 continue
             parsed = canon(tree)

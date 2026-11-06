@@ -70,6 +70,43 @@ declare, such as a silver table kept outside bloomery, and a reserved column
 name like `_source_row_id`, whose presence depends on the relation's quality
 configuration.
 
+### An optional input
+
+An input a project may not have is declared `optional: true`, with the type of
+each column the step reads under `columns:` in place of `requires:`. Only a
+`sql_model` declares one.
+
+```yaml
+inputs:
+  lines: {grain: order_line, requires: [product_id, quantity]}
+  returns:
+    grain: return_line
+    optional: true
+    columns: {product_id: string, quantity: int}
+```
+
+The body reads an optional input by the input's name, so the same text works
+whether a wiring binds it or not:
+
+```sql
+SELECT l.product_id, SUM(l.quantity) - COALESCE(MAX(r.quantity), 0) AS units
+FROM silver.order_line AS l
+LEFT JOIN returns AS r ON r.product_id = l.product_id
+GROUP BY l.product_id
+```
+
+A wiring that binds `returns` makes each such read the relation it binds,
+through the naming policy. That relation must carry every declared column, with
+a type assignable to the declared one, as `decimal(10,2)` is to
+`decimal(14,3)`. A wiring that leaves it out makes each read an empty relation
+of the declared columns, cast to their types as the target spells them, so
+the join finds nothing and the body needs no conditionals. A body that never
+reads the input by its name is refused whether it is bound or not, as is a
+body whose CTE of that name hides it.
+
+Binding or unbinding an optional input restates the step's outputs, as
+rewiring any input does. An unbound input has no edge in lineage.
+
 ## What a spec wires
 
 Wiring, and nothing else:

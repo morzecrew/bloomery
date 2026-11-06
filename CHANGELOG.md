@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A step input can be optional, so one step serves projects with and without a
+  source.** A `sql_model` declares it `optional: true` with typed `columns:`,
+  and a wiring may leave it out. The body reads it by name, as the bound relation,
+  which must carry those columns, or unbound as an empty relation of them. (#402)
+
 ## [0.11.2] - 2026-11-05
 
 ### Fixed

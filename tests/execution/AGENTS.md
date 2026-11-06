@@ -214,6 +214,13 @@ Multi-output emission resolved — **supersedes the draft §10 entry and its exe
 
 - Paths: `tests/execution/test_identity_resolution.py`
 
+### S-0034/D-61 — `ASSUMED` (The step registry: referenced implementations)
+
+A `sql_model` input may be declared `optional: true` with typed `columns:`, and a wiring may leave it unbound. The body reads an optional input by the input's name, as a bare table that is not one of its CTEs, and a body that never does is refused bound or not. Unbound, each such read becomes an empty relation of the declared columns cast to their types; bound, the relation the wiring binds, whose columns must include every declared one with a type assignable to it. An optional input declares no `requires`, a required one no `columns`, and no other kind declares an optional input
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_optional_inputs.py` `tests/execution/test_optional_step_inputs.py` `pages/docs/concepts/step-registry.md`
+- Consequence: One step serves projects with and without a source, from one body with no conditionals, where it took one manifest per combination of inputs. Binding or unbinding the input changes the step's inputs and its lowered body, so `plan()` restates the outputs as for a rewired input, and lineage has no edge from an input nothing binds
+
 ### S-0040/D-11 — `LOCKED` (Temporal joins: SCD2 flattening and currency conversion)
 
 The FX rate relation declares **both** interval ends (`valid_from` and `valid_to`), never `valid_from` alone. One end is not an interval: a fact row would match every rate at or before its anchor and the conversion would fan out. Deriving the upper bound with `LEAD(valid_from)` is rejected — it makes every conversion a window function over the whole rate table, and it extends the newest rate to infinity, so a stale feed converts at last week's rate instead of failing. Consequence: a gap in the rate table is a *miss*, taking D9's `unknown_member` disposition, rather than silently resolving to a neighbour.
