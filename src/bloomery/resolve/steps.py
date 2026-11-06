@@ -49,7 +49,7 @@ from bloomery.ir import (
     canon,
     step_sort_key,
 )
-from bloomery.resolve.refs import relationship_column_errors, step_written
+from bloomery.resolve.refs import carried_fields, relationship_column_errors, step_written
 from bloomery.spec.common import (
     MAX_SQL_DEPTH,
     RESERVED_MEMBER_REASONS,
@@ -537,18 +537,16 @@ def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, fro
     absent — a silver table kept outside bloomery is legal, and its columns
     are nobody's to know here.
 
-    A mapped entity's silver model carries every field but a required one no
-    mapping produces, which ``resolve.build._build_entity`` leaves out (#404):
-    a step reading it would compile and fail at run time.
+    A mapped entity's are the ones its silver model carries
+    (:func:`~bloomery.resolve.refs.carried_fields`, #404): a step reading a
+    field left out would compile and fail at run time.
     """
 
     produced = produced_fields(project)
     columns = {
-        name: frozenset(
-            field_name
-            for field_name, field in entity.fields.items()
-            if not field.required or name not in produced or field_name in produced[name]
-        )
+        name: carried_fields(name, entity, produced[name])
+        if name in produced
+        else frozenset(entity.fields)
         for name, entity in project.entity_model.entities.items()
     }
 

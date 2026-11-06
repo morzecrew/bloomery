@@ -53,6 +53,28 @@ def test_the_semantic_layer_queries_the_mart_s_column(target: Target) -> None:
     assert "unit_price * quantity" not in text
 
 
+def test_a_field_no_mapping_produces_does_not_take_the_binding() -> None:
+    """#404 fills a field no mapping produces with a typed NULL. Linked to the
+    same canonical as the mapped `qty`, the fill made the canonical two
+    columns link, so D-10 left `quantity` unbound and the expression read the
+    NULL column. A fill links no canonical, as reachability already holds: no
+    mapping draws its edge."""
+    sources = _renamed()
+    sources["entity_model"] = sources["entity_model"].replace(
+        "      extensions: {type: variant}\n",
+        "      extensions: {type: variant}\n      quantity: {type: int, canonical: quantity}\n",
+        1,
+    )
+    _project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(load_project(sources), catalog)
+
+    (metric,) = (metric for metric in ir.metrics if metric.name == "gross_revenue")
+    assert metric.expr is not None
+    assert metric.expr.sql == "unit_price * qty"
+    (entity,) = (entity for entity in ir.entities if entity.name == "order_item")
+    assert next(c for c in entity.columns if c.name == "quantity").canonical is None
+
+
 def test_a_canonical_a_step_output_links_is_bound_too() -> None:
     """`identity_resolution`'s template counts `customer_ref`, which the step's
     wiring links to its `canonical_id` output (S-0034/D-49): MetricFlow counted

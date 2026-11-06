@@ -119,7 +119,7 @@ from bloomery.quality import (
 )
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
-from bloomery.resolve.refs import mapping_doc
+from bloomery.resolve.refs import carried_fields, mapping_doc
 from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
@@ -1734,17 +1734,26 @@ def _build_entity(
     # sources — not the intersection, which would silently drop a field only
     # one system carries.
     schema = {column.name: column for columns, _source in built for column in columns}
-    # …and every optional field no mapping produces, NULL on every branch
+    # …and every field :func:`carried_fields` adds, NULL on every branch
     # (§5.2 rule 3), so a reader of a declared field — a step's ``requires``
-    # among them — reads a column that exists (#404). A required one stays
-    # out: `required` is read as "never NULL" by the dimension and additivity
-    # proofs, and refusing the omission on one mapping is a widening D4 does
-    # not authorize (`test_a_single_mapping_may_still_omit_a_required_field`).
-    # `resolve.steps._relation_columns` leaves the same fields out.
+    # among them — reads a column that exists (#404). Such a column links no
+    # canonical: no mapping draws its edge, so reachability never makes the
+    # canonical available through it, and a link here would take a metric's
+    # binding from the mapped field that does (S-0022/D-10).
     schema.update(
-        (name, _column_ir(name, field, _field_type(entity_name, name, field), catalog))
-        for name, field in entity.fields.items()
-        if name not in schema and not field.required
+        (
+            name,
+            replace(
+                _column_ir(
+                    name,
+                    entity.fields[name],
+                    _field_type(entity_name, name, entity.fields[name]),
+                    None,
+                ),
+                canonical=None,
+            ),
+        )
+        for name in sorted(carried_fields(entity_name, entity, schema.keys()) - schema.keys())
     )
     columns = tuple(sorted(schema.values(), key=lambda column: column.name))
     return EntityIR(

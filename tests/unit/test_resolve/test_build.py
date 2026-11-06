@@ -5,7 +5,14 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery import build_project_ir, load_catalog, load_project, project_fingerprint
+from bloomery import (
+    Target,
+    build_project_ir,
+    compile_project,
+    load_catalog,
+    load_project,
+    project_fingerprint,
+)
 from bloomery.errors import (
     GuardrailError,
     MissingReference,
@@ -624,6 +631,20 @@ def test_an_optional_field_no_mapping_produces_is_a_typed_null_column(merged: bo
     assert {source.relation: _projection(source, "cost") for source in entity.sources} == {
         relation: "CAST(NULL AS BIGINT)" for relation in (("src_a", "src_z") if merged else ("src_a",))
     }
+
+
+def test_a_vector_field_no_mapping_produces_stays_out_of_the_model() -> None:
+    """A mapping cannot populate a vector (S-0011/D-4), and no NULL cast can
+    type one, so a declared vector stays out of a mapped entity's model as it
+    did before #404, rather than failing the compile at emit."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      note: {type: string}\n",
+        "      note: {type: string}\n      embedding: {type: 'vector(float32, 4)'}\n",
+    )
+    project = load_project({"entity_model": model, "mapping_z": _SRC_A_MAPPING})
+    (entity,) = build_project_ir(project).entities
+    assert "embedding" not in {column.name for column in entity.columns}
+    assert compile_project(project, target=Target.SQLMESH, dialect="duckdb")
 
 
 def _projection(source: SourceIR, column: str) -> str:
