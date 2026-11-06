@@ -33,15 +33,16 @@ pytestmark = pytest.mark.e2e
 FIXTURE = "ecom_basic"
 MART = "order_items"
 
-#: ``(line_no, order_customer_id, order_date, order_id, order_order_id,
-#: ordered_day, ordered_month, ordered_quarter, ordered_week, ordered_year,
-#: quantity, unit_price)`` — the flattened mart's columns, in ``MartIR`` order.
+#: ``(extensions, line_no, order_customer_id, order_date, order_id,
+#: order_order_id, ordered_day, ordered_month, ordered_quarter, ordered_week,
+#: ordered_year, quantity, unit_price)`` — the flattened mart's columns, in
+#: ``MartIR`` order. ``extensions`` is a field no mapping produces, so NULL (#404).
 ROWS: list[list[Any]] = [
-    [1, "c1", "2024-01-02", "o1", "o1", "2024-01-02", "2024-01-01", "2024-01-01",
+    [None, 1, "c1", "2024-01-02", "o1", "o1", "2024-01-02", "2024-01-01", "2024-01-01",
      "2024-01-01", "2024-01-01", 2, Decimal("10.0000")],
-    [2, "c1", "2024-01-03", "o1", "o1", "2024-01-03", "2024-01-01", "2024-01-01",
+    [None, 2, "c1", "2024-01-03", "o1", "o1", "2024-01-03", "2024-01-01", "2024-01-01",
      "2024-01-01", "2024-01-01", 3, Decimal("5.0000")],
-    [1, "c2", "2024-02-05", "o2", "o2", "2024-02-05", "2024-02-01", "2024-01-01",
+    [None, 1, "c2", "2024-02-05", "o2", "o2", "2024-02-05", "2024-02-01", "2024-01-01",
      "2024-02-05", "2024-01-01", 1, Decimal("20.0000")],
 ]  # fmt: skip
 

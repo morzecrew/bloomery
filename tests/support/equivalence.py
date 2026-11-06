@@ -43,18 +43,18 @@ class Seed:
     rows: tuple[tuple[Any, ...], ...]
 
 
-#: ``ecom_basic.order_items`` columns, in ``MartIR`` order: line_no,
-#: order_customer_id, order_date, order_id, order_order_id, ordered_day,
-#: ordered_month, ordered_quarter, ordered_week, ordered_year, quantity,
-#: unit_price.
+#: ``ecom_basic.order_items`` columns, in ``MartIR`` order: extensions (a
+#: field no mapping produces, so NULL — #404), line_no, order_customer_id,
+#: order_date, order_id, order_order_id, ordered_day, ordered_month,
+#: ordered_quarter, ordered_week, ordered_year, quantity, unit_price.
 _ECOM = (
-    (1, "c1", "2024-01-02", "o1", "o1", "2024-01-02", "2024-01-01", "2024-01-01",
+    (None, 1, "c1", "2024-01-02", "o1", "o1", "2024-01-02", "2024-01-01", "2024-01-01",
      "2024-01-01", "2024-01-01", 2, Decimal("10.0000")),
-    (2, "c1", "2024-01-03", "o1", "o1", "2024-01-03", "2024-01-01", "2024-01-01",
+    (None, 2, "c1", "2024-01-03", "o1", "o1", "2024-01-03", "2024-01-01", "2024-01-01",
      "2024-01-01", "2024-01-01", 3, Decimal("5.0000")),
-    (1, "c2", "2024-02-05", "o2", "o2", "2024-02-05", "2024-02-01", "2024-01-01",
+    (None, 1, "c2", "2024-02-05", "o2", "o2", "2024-02-05", "2024-02-01", "2024-01-01",
      "2024-02-05", "2024-01-01", 1, Decimal("20.0000")),
-    (2, "c2", "2024-02-06", "o2", "o2", "2024-02-06", "2024-02-01", "2024-01-01",
+    (None, 2, "c2", "2024-02-06", "o2", "o2", "2024-02-06", "2024-02-01", "2024-01-01",
      "2024-02-05", "2024-01-01", 4, Decimal("2.5000")),
 )  # fmt: skip
 
