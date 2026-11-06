@@ -55,14 +55,15 @@ def test_the_semantic_layer_queries_the_mart_s_column(target: Target) -> None:
 
 def test_a_field_no_mapping_produces_does_not_take_the_binding() -> None:
     """#404 fills a field no mapping produces with a typed NULL. Linked to the
-    same canonical as the mapped `qty`, the fill made the canonical two
-    columns link, so D-10 left `quantity` unbound and the expression read the
-    NULL column. A fill links no canonical, as reachability already holds: no
-    mapping draws its edge."""
+    same canonical as the mapped `qty`, the fill `units` made the canonical two
+    columns link, so D-10 left `quantity` unbound and the expression read a
+    column the mart does not have. A fill links no canonical, as reachability
+    already holds: no mapping draws its edge. (A fill spelled `quantity` stays
+    out of the model altogether: `test_canonical_filter_binding`.)"""
     sources = _renamed()
     sources["entity_model"] = sources["entity_model"].replace(
         "      extensions: {type: variant}\n",
-        "      extensions: {type: variant}\n      quantity: {type: int, canonical: quantity}\n",
+        "      extensions: {type: variant}\n      units: {type: int, canonical: quantity}\n",
         1,
     )
     _project, catalog = load_fixture("ecom_basic")
@@ -72,7 +73,7 @@ def test_a_field_no_mapping_produces_does_not_take_the_binding() -> None:
     assert metric.expr is not None
     assert metric.expr.sql == "unit_price * qty"
     (entity,) = (entity for entity in ir.entities if entity.name == "order_item")
-    assert next(c for c in entity.columns if c.name == "quantity").canonical is None
+    assert next(c for c in entity.columns if c.name == "units").canonical is None
 
 
 def test_a_field_no_mapping_produces_keeps_its_canonical_s_metadata() -> None:
@@ -81,7 +82,7 @@ def test_a_field_no_mapping_produces_keeps_its_canonical_s_metadata() -> None:
     sources = _renamed()
     sources["entity_model"] = sources["entity_model"].replace(
         "      extensions: {type: variant}\n",
-        "      extensions: {type: variant}\n      quantity: {type: int, canonical: quantity}\n",
+        "      extensions: {type: variant}\n      units: {type: int, canonical: quantity}\n",
         1,
     )
     text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
@@ -90,7 +91,7 @@ def test_a_field_no_mapping_produces_keeps_its_canonical_s_metadata() -> None:
     catalog = load_catalog(text.replace(anchor, anchor + "    description: Units on the line.\n"))
     (entity,) = (e for e in build_project_ir(load_project(sources), catalog).entities if e.name == "order_item")
 
-    filled = next(c for c in entity.columns if c.name == "quantity")
+    filled = next(c for c in entity.columns if c.name == "units")
     assert (filled.description, filled.unit) == ("Units on the line.", Unit.COUNT)
 
 

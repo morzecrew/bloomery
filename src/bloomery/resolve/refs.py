@@ -242,19 +242,26 @@ def carried_fields(entity_name: str, entity: Entity, produced: Collection[str]) 
     mappings ``produced`` (#404).
 
     Those, and every optional field they do not produce, which is a typed NULL
-    there (S-0041 §5.2 rule 3). Two kinds stay out. A required field none
+    there (S-0041 §5.2 rule 3). Three kinds stay out. A required field none
     produces: ``required`` is read as "never NULL", and refusing the omission
-    on one mapping is the widening S-0041/D-4 declines. And a vector, which no
-    mapping can populate and no NULL cast can type (S-0011/D-4).
+    on one mapping is the widening S-0041/D-4 declines. A vector, which no
+    mapping can populate and no NULL cast can type (S-0011/D-4). And a field
+    spelled as a canonical a produced field links: a metric's filter, ``over``
+    axis or ``column:`` operand reads the column spelled as written before the
+    linked one (S-0022/D-11), so a NULL column of that name would take the
+    reading from the field that has the data.
 
     One function for the build, which fills these columns, and for a step's
     ``requires``, which is checked against them, so the two cannot disagree.
     """
 
+    linked = {entity.fields[name].canonical for name in produced} - {None}
+
     return frozenset(produced) | {
         name
         for name, field in entity.fields.items()
         if not field.required
+        and name not in linked
         and not isinstance(
             parse_type(
                 field.type, source_path=f"entity_model: entities.{entity_name}.fields.{name}.type"
