@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import pytest
 from sqlglot import parse_one
-from support.compiling import fixture_sources, load_fixture
+from support.compiling import FIXTURES, fixture_sources, load_fixture
 from support.steps import registry_for
 
-from bloomery import Target, build_project_ir, compile_project, load_project
+from bloomery import Target, build_project_ir, compile_project, load_catalog, load_project
 from bloomery.errors import GuardrailError, UnitMismatch
-from bloomery.ir import ColumnIR, bind_columns, canonical_bindings
+from bloomery.ir import ColumnIR, Unit, bind_columns, canonical_bindings
 from bloomery.typing import IntType
 
 pytestmark = pytest.mark.unit
@@ -73,6 +73,25 @@ def test_a_field_no_mapping_produces_does_not_take_the_binding() -> None:
     assert metric.expr.sql == "unit_price * qty"
     (entity,) = (entity for entity in ir.entities if entity.name == "order_item")
     assert next(c for c in entity.columns if c.name == "quantity").canonical is None
+
+
+def test_a_field_no_mapping_produces_keeps_its_canonical_s_metadata() -> None:
+    """Only the link goes: the description and unit a filled field inherits
+    from its canonical still reach the semantic layers (S-0094/D-2)."""
+    sources = _renamed()
+    sources["entity_model"] = sources["entity_model"].replace(
+        "      extensions: {type: variant}\n",
+        "      extensions: {type: variant}\n      quantity: {type: int, canonical: quantity}\n",
+        1,
+    )
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text(encoding="utf-8")
+    anchor = "  quantity:\n    entity: order_item\n"
+    assert text.count(anchor) == 1
+    catalog = load_catalog(text.replace(anchor, anchor + "    description: Units on the line.\n"))
+    (entity,) = (e for e in build_project_ir(load_project(sources), catalog).entities if e.name == "order_item")
+
+    filled = next(c for c in entity.columns if c.name == "quantity")
+    assert (filled.description, filled.unit) == ("Units on the line.", Unit.COUNT)
 
 
 def test_a_canonical_a_step_output_links_is_bound_too() -> None:

@@ -1751,7 +1751,8 @@ def _build_entity(
     # among them — reads a column that exists (#404). Such a column links no
     # canonical: no mapping draws its edge, so reachability never makes the
     # canonical available through it, and a link here would take a metric's
-    # binding from the mapped field that does (S-0022/D-10).
+    # binding from the mapped field that does (S-0022/D-10). Only the link
+    # goes: the description and unit it inherits still describe the column.
     schema.update(
         (
             name,
@@ -1760,7 +1761,7 @@ def _build_entity(
                     name,
                     entity.fields[name],
                     _field_type(entity_name, name, entity.fields[name]),
-                    None,
+                    catalog,
                 ),
                 canonical=None,
             ),
