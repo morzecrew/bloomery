@@ -138,6 +138,13 @@ A `string` parameter may declare `values`, a non-empty list of the names it may 
 - Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py` `tests/unit/test_steps/test_macro_fields.py` `tests/unit/test_quality/test_repair.py`
 - Consequence: A parameter that picks one of a few behaviours is written by name, `allocate: units`, and a typo is a compile error rather than the body's fall-through branch. Changing the value restates the outputs as any parameter change does. Unlike D-58's bounds, the default is checked
 
+### S-0034/D-61 — `ASSUMED` (The step registry: referenced implementations)
+
+A `sql_model` input may be declared `optional: true` with typed `columns:`, and a wiring may leave it unbound. The body reads an optional input by the input's name, as a bare table that no CTE in scope defines, and a body that never does is refused bound or not, as is a read whose alias renames its columns by position. Unbound, each such read becomes an empty relation of the declared columns cast to their types; bound, the relation the wiring binds, whose columns must include every declared one with a type assignable to it, and whose binding, if bare, no CTE of the body may share. An optional input declares no `requires` and no vector column, a required one no `columns`, and no other kind declares an optional input
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_optional_inputs.py` `tests/execution/test_optional_step_inputs.py` `pages/docs/concepts/step-registry.md`
+- Consequence: One step serves projects with and without a source, from one body with no conditionals, where it took one manifest per combination of inputs. Binding or unbinding the input changes the step's inputs and its lowered body, so `plan()` restates the outputs as for a rewired input, and lineage has no edge from an input nothing binds
+
 ### S-0035/D-3 — `ASSUMED` (Public surface and stability policy)
 
 **`assert_step_contract` is promoted to `bloomery.steps.__all__`** and the generated wrapper's import rewritten to the shallow path. The module path was de-facto public API — imported by bloomery's own artifacts shipped into consumer repositories — with no declaration and no test protecting it. `bloomery.steps.contract` keeps working; this adds a supported path rather than removing an unsupported one. A golden assertion pins the emitted import line.
