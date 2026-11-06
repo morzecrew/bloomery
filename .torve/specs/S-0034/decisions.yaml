@@ -947,3 +947,33 @@ decisions:
       (S-0033/D-90): a parent computed from elsewhere builds first, and one computed
       from the dependent cannot
     cites: [D-36, D-49, D-57, S-0033/D-90]
+  - id: D-60
+    grade: ASSUMED
+    text: >-
+      A `string` parameter may declare `values`, a non-empty list of the names it may
+      take. A value that is not one of them is refused at compile with a `StepError`
+      listing them, wherever it is set: in a step wiring, in the pass that refuses an
+      out-of-bounds number, and at a `sql_macro`'s call site in a field mapping or a
+      repair recipe, where its parameters become literals. A manifest declaring `values` on any other type, or a `default` that is not one of
+      them, is refused at parse. The value is compared as the text the IR records, and
+      substitution is unchanged: the placeholder still becomes a string literal
+    paths:
+      - src/bloomery/steps/manifest.py
+      - src/bloomery/resolve/steps.py
+      - src/bloomery/resolve/build.py
+      - tests/unit/test_steps/test_lowering.py
+      - tests/unit/test_steps/test_manifest_and_registry.py
+      - tests/unit/test_steps/test_macro_fields.py
+      - tests/unit/test_quality/test_repair.py
+    consequence: >-
+      A parameter that picks one of a few behaviours is written by name, `allocate:
+      units`, and a typo is a compile error rather than the body's fall-through
+      branch. Changing the value restates the outputs as any parameter change does.
+      Unlike D-58's bounds, the default is checked
+    rationale: >-
+      #403. A free string compiled any typo, and an integer code bounded by D-58 was
+      checked but unreadable in the spec, a diff or an agent's edit. Checking in the
+      platform before saving a revision misses a spec edited by hand. The default is
+      checked in the manifest because the compile checks only wired values, so every
+      wiring that leaves the parameter out would run with a name the step never handles
+    cites: [D-7, D-15, D-58]

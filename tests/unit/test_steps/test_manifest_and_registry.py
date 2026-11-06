@@ -111,6 +111,22 @@ def test_inverted_parameter_bounds_are_refused() -> None:
         manifest(parameters={"threshold": {"type": "decimal(4,3)", "min": 1, "max": 0}})
 
 
+@pytest.mark.parametrize(
+    ("parameter", "problem"),
+    [
+        ({"type": "string", "values": ["none", "units"], "default": "revenue"},
+         "default 'revenue' is not one of its values: none, units"),
+        ({"type": "int", "values": ["1", "2"]}, "values apply to a string parameter only"),
+        ({"type": "string", "values": []}, "at least 1 item"),
+    ],
+)
+def test_a_parameter_whose_values_cannot_hold_is_refused(
+    parameter: dict[str, object], problem: str
+) -> None:
+    with pytest.raises(ValidationError, match=problem):
+        manifest(parameters={"allocate": parameter})
+
+
 def test_a_parameter_default_is_never_a_float() -> None:
     """S-0020/D-5 reaches the manifest too: a YAML float would arrive as a
     binary approximation of the number the platform team wrote."""

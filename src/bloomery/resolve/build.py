@@ -121,7 +121,7 @@ from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import Resolution, resolve
-from bloomery.resolve.steps import lower_steps, step_entities
+from bloomery.resolve.steps import lower_steps, step_entities, unlisted_value
 from bloomery.semantic import Conversion, Refutation, consequence_of, prove_conversion
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.common import MAX_SQL_DEPTH, SQLGLOT_PARSE_FAILURES, UTC_ZONES, sql_depth
@@ -474,7 +474,7 @@ def _splice_link(
     _refuse_unchainable(use, manifest, source_path=source_path)
     (column,) = manifest.accepts
     arguments: dict[str, Expression] = {column: running}
-    arguments.update(_macro_parameters(manifest, {}))
+    arguments.update(_macro_parameters(manifest, {}, source_path=source_path))
     (output,) = manifest.outputs.values()
     (produced,) = output.produces.values()
     return splice(body, arguments), parse_type(produced.type, source_path=source_path)
@@ -1082,9 +1082,19 @@ def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -
 
 
 def _macro_parameters(
-    manifest: StepManifest, overrides: dict[str, object]
+    manifest: StepManifest, overrides: dict[str, object], *, source_path: str
 ) -> dict[str, Expression]:
-    """Declared defaults under the call site's values, as typed literals."""
+    """Declared defaults under the call site's values, as typed literals.
+
+    Every call site of a macro passes through here, so a value its manifest's
+    ``values`` do not list is refused here (S-0034/D-60).
+    """
+    use = f"{manifest.ref}@{manifest.version}"
+
+    for name, value in sorted(overrides.items()):
+        if (unlisted := unlisted_value(use, name, manifest.parameters[name], value)) is not None:
+            raise StepError(unlisted, source_path=source_path)
+
     resolved = {
         name: str(spec.default)
         for name, spec in manifest.parameters.items()
@@ -1120,7 +1130,9 @@ def _macro_expr(
     arguments: dict[str, Expression] = {
         alias: extraction(path) for alias, path in field_mapping.from_.items()
     }
-    arguments.update(_macro_parameters(manifest, dict(field_mapping.parameters)))
+    arguments.update(
+        _macro_parameters(manifest, dict(field_mapping.parameters), source_path=source_path)
+    )
 
     return exp.cast(splice(body, arguments), neutral_type(declared))
 
@@ -1267,7 +1279,7 @@ def _repair_bodies(
                     expected=f"the single column {rule.repair.via!r} accepts",
                     by="_refuse_unrepairing, which requires exactly one (S-0033/D-87)",
                 ): exp.column(column),
-                **_macro_parameters(manifest, dict(rule.repair.parameters)),
+                **_macro_parameters(manifest, dict(rule.repair.parameters), source_path=where),
             }
             bodies[column] = canon(exp.cast(splice(body, arguments), neutral_type(declared))).sql
 

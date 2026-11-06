@@ -191,12 +191,16 @@ class StepParameter(SpecModel):
     wiring, so a parameter out of range is a spec error rather than a run-time
     surprise inside somebody's Python. ``min``/``max`` apply to numeric
     parameters only; they are ``Decimal``, never ``float`` (S-0020/D-5).
+    ``values`` closes a ``string`` parameter over the names it may take, so a
+    typo is refused rather than read as whichever branch the body falls
+    through to (S-0034/D-60).
     """
 
     type: ParameterTypeString
     default: str | int | bool | Decimal | None = None
     min: Decimal | None = None
     max: Decimal | None = None
+    values: tuple[str, ...] | None = Field(default=None, min_length=1)
 
     # ....................... #
 
@@ -204,6 +208,27 @@ class StepParameter(SpecModel):
     def _bounds_are_ordered(self) -> Self:
         if self.min is not None and self.max is not None and self.min > self.max:
             msg = f"parameter bounds are inverted: min {self.min} > max {self.max}"
+            raise ValueError(msg)
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _values_hold(self) -> Self:
+        if self.values is None:
+            return self
+
+        if self.type != "string":
+            msg = f"values apply to a string parameter only, and this one is {self.type}"
+            raise ValueError(msg)
+
+        # As text, because that is what the IR records for it (D15).
+        if self.default is not None and str(self.default) not in self.values:
+            msg = (
+                f"parameter default {str(self.default)!r} is not one of its values: "
+                f"{', '.join(self.values)}"
+            )
             raise ValueError(msg)
 
         return self
