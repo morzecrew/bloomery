@@ -29,6 +29,13 @@ A step input's `requires` is a lower bound the compile checks: when the wiring b
 - Paths: `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_lowering.py` `pages/docs/concepts/step-registry.md`
 - Consequence: a step that reads a column its bound relation lacks is refused at compile rather than failing at run time on the engine; a silver table kept outside bloomery still binds, unchecked
 
+### S-0034/D-61 — `ASSUMED` (The step registry: referenced implementations)
+
+A `sql_model` input may be declared `optional: true` with typed `columns:`, and a wiring may leave it unbound. The body reads an optional input by the input's name, as a bare table that no CTE in scope defines, and a body that never does is refused bound or not, as is a read whose alias renames its columns by position. Unbound, each such read becomes an empty relation of the declared columns cast to their types; bound, the relation the wiring binds, whose columns must include every declared one with a type assignable to it, and whose binding, if bare, no CTE of the body may share. An optional input declares no `requires` and no vector column, a required one no `columns`, and no other kind declares an optional input
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_optional_inputs.py` `tests/execution/test_optional_step_inputs.py` `pages/docs/concepts/step-registry.md`
+- Consequence: One step serves projects with and without a source, from one body with no conditionals, where it took one manifest per combination of inputs. Binding or unbinding the input changes the step's inputs and its lowered body, so `plan()` restates the outputs as for a rewired input, and lineage has no edge from an input nothing binds
+
 ### S-0058/D-1 — `LOCKED` (Soundness positioning and the claims the docs may make)
 
 **The claim is preservation of declared semantics, never truth.** bloomery proves that what it emits and accepts preserves what it was told, under documented rules — not that the telling was right. Locked because every weaker phrasing of this ("correct analytics", "guaranteed correct metrics") is unfalsifiable and would be quoted back at the project the first time a wrong number came from a wrong declaration.

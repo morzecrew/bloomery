@@ -131,6 +131,20 @@ A relationship's endpoint may be a step output, named by the bare relation the s
 - Paths: `src/bloomery/resolve/refs.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/quality.py` `tests/unit/test_steps/test_step_relationships.py`
 - Consequence: Order metrics can be cut by a segment a step computes per customer, and a mistyped `via` column on the step side is refused at compile, one stage later than on an authored entity, with both sides in the same report. Two authored entities whose referential rules join each other, which compiled to a pair of models each reading the other, are refused too
 
+### S-0034/D-60 — `ASSUMED` (The step registry: referenced implementations)
+
+A `string` parameter may declare `values`, a non-empty list of the names it may take. A value that is not one of them is refused at compile with a `StepError` listing them, wherever it is set: in a step wiring, in the pass that refuses an out-of-bounds number, and at a `sql_macro`'s call site in a field mapping or a repair recipe, where its parameters become literals. A manifest declaring `values` on any other type, or a `default` that is not one of them, is refused at parse. The value is compared as the text the IR records, and substitution is unchanged: the placeholder still becomes a string literal
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py` `tests/unit/test_steps/test_macro_fields.py` `tests/unit/test_quality/test_repair.py`
+- Consequence: A parameter that picks one of a few behaviours is written by name, `allocate: units`, and a typo is a compile error rather than the body's fall-through branch. Changing the value restates the outputs as any parameter change does. Unlike D-58's bounds, the default is checked
+
+### S-0034/D-61 — `ASSUMED` (The step registry: referenced implementations)
+
+A `sql_model` input may be declared `optional: true` with typed `columns:`, and a wiring may leave it unbound. The body reads an optional input by the input's name, as a bare table that no CTE in scope defines, and a body that never does is refused bound or not, as is a read whose alias renames its columns by position. Unbound, each such read becomes an empty relation of the declared columns cast to their types; bound, the relation the wiring binds, whose columns must include every declared one with a type assignable to it, and whose binding, if bare, no CTE of the body may share. An optional input declares no `requires` and no vector column, a required one no `columns`, and no other kind declares an optional input
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `tests/unit/test_steps/test_optional_inputs.py` `tests/execution/test_optional_step_inputs.py` `pages/docs/concepts/step-registry.md`
+- Consequence: One step serves projects with and without a source, from one body with no conditionals, where it took one manifest per combination of inputs. Binding or unbinding the input changes the step's inputs and its lowered body, so `plan()` restates the outputs as for a rewired input, and lineage has no edge from an input nothing binds
+
 ### S-0035/D-3 — `ASSUMED` (Public surface and stability policy)
 
 **`assert_step_contract` is promoted to `bloomery.steps.__all__`** and the generated wrapper's import rewritten to the shallow path. The module path was de-facto public API — imported by bloomery's own artifacts shipped into consumer repositories — with no declaration and no test protecting it. `bloomery.steps.contract` keeps working; this adds a supported path rather than removing an unsupported one. A golden assertion pins the emitted import line.

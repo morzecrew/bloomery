@@ -87,6 +87,13 @@ On a port that declares the check of D-100, `coercible` gains a disjunct for a J
 
 - Paths: `src/bloomery/guardrails/quality.py` `src/bloomery/resolve/graph.py` `src/bloomery/resolve/refs.py` `src/bloomery/spec/steps.py` `tests/fixtures/identity_resolution/catalog.yaml` `tests/fixtures/identity_resolution/steps.yaml` `tests/unit/test_quality/test_reconcile.py` `tests/unit/test_steps/test_step_canonicals.py` `tests/unit/test_unresolved.py`
 
+### S-0034/D-60 — `ASSUMED` (The step registry: referenced implementations)
+
+A `string` parameter may declare `values`, a non-empty list of the names it may take. A value that is not one of them is refused at compile with a `StepError` listing them, wherever it is set: in a step wiring, in the pass that refuses an out-of-bounds number, and at a `sql_macro`'s call site in a field mapping or a repair recipe, where its parameters become literals. A manifest declaring `values` on any other type, or a `default` that is not one of them, is refused at parse. The value is compared as the text the IR records, and substitution is unchanged: the placeholder still becomes a string literal
+
+- Paths: `src/bloomery/steps/manifest.py` `src/bloomery/resolve/steps.py` `src/bloomery/resolve/build.py` `tests/unit/test_steps/test_lowering.py` `tests/unit/test_steps/test_manifest_and_registry.py` `tests/unit/test_steps/test_macro_fields.py` `tests/unit/test_quality/test_repair.py`
+- Consequence: A parameter that picks one of a few behaviours is written by name, `allocate: units`, and a typo is a compile error rather than the body's fall-through branch. Changing the value restates the outputs as any parameter change does. Unlike D-58's bounds, the default is checked
+
 ### S-0040/D-11 — `LOCKED` (Temporal joins: SCD2 flattening and currency conversion)
 
 The FX rate relation declares **both** interval ends (`valid_from` and `valid_to`), never `valid_from` alone. One end is not an interval: a fact row would match every rate at or before its anchor and the conversion would fan out. Deriving the upper bound with `LEAD(valid_from)` is rejected — it makes every conversion a window function over the whole rate table, and it extends the newest rate to infinity, so a stale feed converts at last week's rate instead of failing. Consequence: a gap in the rate table is a *miss*, taking D9's `unknown_member` disposition, rather than silently resolving to a neighbour.
