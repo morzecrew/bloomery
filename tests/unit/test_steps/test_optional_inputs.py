@@ -265,6 +265,29 @@ def test_a_bound_optional_input_s_columns_must_take_its_types(
         assert build_project_ir(wired, steps=registry(returns=returns)).steps
 
 
+@pytest.mark.parametrize("binding", ["return_line", "Return_Line"])
+def test_a_bound_optional_input_named_like_a_cte_of_the_body_is_refused(binding: str) -> None:
+    """A bare binding becomes a bare table in the body, and a bare table that
+    names a CTE is the CTE, in any case: the read would take the CTE's rows."""
+    text = wiring(returns=True).replace("returns: silver.return_line", f"returns: {binding}")
+    wired = load_project({"entity_model": ENTITY_MODEL, **MAPPINGS, "steps": text})
+    body = "WITH return_line AS (SELECT 'x' AS product_id, 1 AS quantity) " + BODY
+
+    with pytest.raises(StepError, match=rf"binds optional input returns to {binding}, which the body"):
+        build_project_ir(wired, steps=registry(body))
+
+
+def test_a_qualified_binding_is_not_hidden_by_a_cte_of_its_last_name() -> None:
+    text = wiring(returns=True)
+    wired = load_project({"entity_model": ENTITY_MODEL, **MAPPINGS, "steps": text})
+    body = "WITH return_line AS (SELECT 'x' AS product_id, 1 AS quantity) " + BODY
+    artifacts = compile_project(
+        wired, target=Target.SQLMESH, dialect="duckdb", naming=PrefixNaming("t0"), steps=registry(body)
+    )
+    model = flat(next(a.content for a in artifacts if a.path.endswith("/net_units.sql")))
+    assert "LEFT JOIN t0_silver.return_line AS r" in model
+
+
 # ....................... #
 # The body
 

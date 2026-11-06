@@ -996,6 +996,22 @@ def _read_optional_inputs(
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 
+    # The read becomes the binding's own spelling, which emit routes through the
+    # naming policy unless it is a bare name one of the body's CTEs defines
+    # (`emit.steps._with_bound_inputs`): such a read would take the CTE's rows.
+    ctes = {cte.alias.lower() for cte in tree.find_all(exp.CTE)}
+    for name in sorted(optional):
+        bound = wiring.inputs.get(name)
+        if bound is not None and "." not in bound and bound.lower() in ctes:
+            msg = (
+                f"step {wiring.use!r} binds optional input {name} to {bound}, which the body "
+                "also defines as a CTE. The read is replaced by the bare name the wiring "
+                "binds, and a bare name a CTE defines is the CTE, so it would read the CTE's "
+                f"rows (S-0034/D-61). Fix: bind the input to a qualified relation, such as "
+                f"silver.{bound}, or rename the CTE"
+            )
+            errors.append(StepError(msg, source_path=_path(wiring)))
+
     if errors:
         return tree, errors
 

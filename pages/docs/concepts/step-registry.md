@@ -117,7 +117,9 @@ A read may alias the input, but not rename its columns with a column list
 (`returns AS r(pid, qty)`): the list renames by position, and the bound
 relation's columns are in its own order while the empty relation's are in the
 declared one. A `vector` column cannot be declared, since nothing casts a NULL
-to a vector.
+to a vector. A wiring that binds the input to a bare relation name, such as
+`returns: return_line`, is refused when the body has a CTE of that name, since
+the read would then name the CTE; bind it qualified, as `silver.return_line`.
 
 Binding or unbinding an optional input restates the step's outputs, as
 rewiring any input does. An unbound input has no edge in lineage.

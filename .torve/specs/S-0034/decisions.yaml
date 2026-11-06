@@ -986,7 +986,8 @@ decisions:
       refused bound or not, as is a read whose alias renames its columns by position.
       Unbound, each such read becomes an empty relation of the declared columns cast to
       their types; bound, the relation the wiring binds, whose columns must include
-      every declared one with a type assignable to it. An optional input declares no
+      every declared one with a type assignable to it, and whose binding, if bare, no
+      CTE of the body may share. An optional input declares no
       `requires` and no vector column, a required one no `columns`, and no other kind
       declares an optional input
     paths:
