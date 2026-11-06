@@ -2365,12 +2365,19 @@ bloomery, never in a spec:</p>
 <span class="w">      </span><span class="nt">confidence</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">decimal(4</span><span class="p p-Indicator">,</span><span class="nv">3)</span><span class="p p-Indicator">,</span><span class="nt"> label</span><span class="p">:</span><span class="w"> </span><span class="nv">Match confidence</span><span class="p p-Indicator">}</span>
 <span class="nt">parameters</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">decimal(4</span><span class="p p-Indicator">,</span><span class="nv">3)</span><span class="p p-Indicator">,</span><span class="nt"> default</span><span class="p">:</span><span class="w"> </span><span class="nv">0.85</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="nt"> max</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">allocate</span><span class="p">:</span><span class="w">  </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">,</span><span class="nt"> values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">none</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">revenue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">units</span><span class="p p-Indicator">],</span><span class="nt"> default</span><span class="p">:</span><span class="w"> </span><span class="nv">none</span><span class="p p-Indicator">}</span>
 <span class="nt">lineage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">coarse</span>
 </code></pre></div>
 <p><code>grain</code> is prose for humans; <code>key</code> is the machine-readable half, and the
 difference matters — a grain sentence cannot be checked, a key can. A
 <code>produces:</code> column may carry a <code>label</code>, which the output entity's column takes
 as a mapped field's would. Changing it restates nothing.</p>
+<p>A parameter's <code>min</code> and <code>max</code> bound a number, inclusively. <code>values</code> closes a
+<code>string</code> parameter over the names it may take, so a wiring that sets
+<code>allocate: revenu</code> is refused with a <code>StepError</code> listing <code>none, revenue, units</code>
+rather than running whichever branch the body falls through to. The manifest
+itself is refused if its <code>default</code> is not one of its <code>values</code>, or if a
+parameter of any other type declares them.</p>
 <p>An input's <code>requires</code> names the columns the step reads, and it is a lower bound
 the compile checks. When the wiring binds the input to an entity the project
 declares, or to another step's output, every required column has to be one of
