@@ -241,6 +241,31 @@ def test_a_parameter_at_a_bound_is_accepted() -> None:
     assert build(WIRING.replace("threshold: 0.9", "threshold: 1")).steps
 
 
+#: A string parameter that picks one of a few named behaviours (#403).
+ALLOCATE = {"type": "string", "values": ["none", "revenue", "units"], "default": "none"}
+
+
+def test_a_parameter_outside_its_values_is_refused_naming_them() -> None:
+    """A typo would otherwise select whichever branch the body falls through
+    to, and say nothing."""
+    with pytest.raises(StepError, match=r"'revenu', which is not one of none, revenue, units"):
+        build(
+            WIRING.replace("threshold: 0.9", "threshold: 0.9, allocate: revenu"),
+            parameters={"threshold": {"type": "decimal(4,3)"}, "allocate": ALLOCATE},
+        )
+
+
+def test_a_parameter_among_its_values_resolves_as_written() -> None:
+    (step,) = build(
+        WIRING.replace("threshold: 0.9", "threshold: 0.9, allocate: units"),
+        parameters={"threshold": {"type": "decimal(4,3)"}, "allocate": ALLOCATE},
+    ).steps
+    assert [(p.name, p.value) for p in step.parameters] == [
+        ("allocate", "units"),
+        ("threshold", "0.9"),
+    ]
+
+
 # ....................... #
 # Batching (S-0023/D-2) and the duplicate-relation refusal (§5.8, D8)
 
