@@ -134,6 +134,18 @@ def test_a_parameter_is_substituted_as_a_typed_literal() -> None:
     assert "2" in domain_expr(ir)
 
 
+def test_a_macro_s_values_hold_at_its_call_site() -> None:
+    """A manifest's ``values`` are refused outside wherever the macro is
+    called, not only in a step wiring (D-60)."""
+    reg = registry(
+        body="SPLIT_PART(:email, '@', CASE WHEN :side = 'user' THEN 1 ELSE 2 END)",
+        parameters={"side": {"type": "string", "values": ["user", "domain"], "default": "domain"}},
+    )
+    assert "'user'" in domain_expr(build(CALL + "    parameters: {side: user}\n", reg))
+    with pytest.raises(StepError, match=r"'usr', which is not one of user, domain"):
+        build(CALL + "    parameters: {side: usr}\n", reg)
+
+
 def test_a_parameter_value_cannot_carry_sql_into_the_body() -> None:
     ir = build(
         '    step: extract_domain@1\n    from: {email: "$.email"}\n'

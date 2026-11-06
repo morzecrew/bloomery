@@ -64,7 +64,7 @@ if TYPE_CHECKING:
 
     from bloomery.spec.project import Project
     from bloomery.spec.steps import StepWiring
-    from bloomery.steps import StepManifest, StepRegistry
+    from bloomery.steps import StepManifest, StepParameter, StepRegistry
 
 # ----------------------- #
 
@@ -199,12 +199,8 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
 
     for name in sorted(set(wiring.parameters) & set(manifest.parameters)):
         spec, value = manifest.parameters[name], wiring.parameters[name]
-        if spec.values is not None and str(value) not in spec.values:
-            msg = (
-                f"step {wiring.use!r} sets parameter {name!r} to {str(value)!r}, which is "
-                f"not one of {', '.join(spec.values)}, the values the manifest declares"
-            )
-            errors.append(StepError(msg, source_path=_path(wiring)))
+        if (unlisted := unlisted_value(wiring.use, name, spec, value)) is not None:
+            errors.append(StepError(unlisted, source_path=_path(wiring)))
         if spec.min is None and spec.max is None:
             continue
         try:
@@ -231,6 +227,28 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
             errors.append(StepError(msg, source_path=_path(wiring)))
 
     return errors
+
+
+# ....................... #
+
+
+def unlisted_value(use: str, name: str, spec: StepParameter, value: object) -> str | None:
+    """The refusal of a value its parameter's ``values`` do not list, or
+    ``None`` (D-60).
+
+    One message for every place a value is set: a step wiring, and a macro's
+    call site in a field mapping or a repair recipe. The value is compared as
+    the text the IR records.
+    """
+    text = str(value)
+
+    if spec.values is None or text in spec.values:
+        return None
+
+    return (
+        f"step {use!r} sets parameter {name!r} to {text!r}, which is not one of "
+        f"{', '.join(spec.values)}, the values the manifest declares"
+    )
 
 
 # ....................... #

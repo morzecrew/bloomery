@@ -951,16 +951,20 @@ decisions:
     grade: ASSUMED
     text: >-
       A `string` parameter may declare `values`, a non-empty list of the names it may
-      take. A wired value that is not one of them is refused at compile with a
-      `StepError` listing them, in the pass that refuses an out-of-bounds number. A
-      manifest declaring `values` on any other type, or a `default` that is not one of
+      take. A value that is not one of them is refused at compile with a `StepError`
+      listing them, wherever it is set: in a step wiring, in the pass that refuses an
+      out-of-bounds number, and at a `sql_macro`'s call site in a field mapping or a
+      repair recipe, where its parameters become literals. A manifest declaring `values` on any other type, or a `default` that is not one of
       them, is refused at parse. The value is compared as the text the IR records, and
       substitution is unchanged: the placeholder still becomes a string literal
     paths:
       - src/bloomery/steps/manifest.py
       - src/bloomery/resolve/steps.py
+      - src/bloomery/resolve/build.py
       - tests/unit/test_steps/test_lowering.py
       - tests/unit/test_steps/test_manifest_and_registry.py
+      - tests/unit/test_steps/test_macro_fields.py
+      - tests/unit/test_quality/test_repair.py
     consequence: >-
       A parameter that picks one of a few behaviours is written by name, `allocate:
       units`, and a typo is a compile error rather than the body's fall-through
