@@ -286,7 +286,6 @@ ecom_basic|order_items|gross_revenue|	accepted
 ecom_basic|order_items|gross_revenue|day	accepted
 ecom_basic|order_items|gross_revenue|day,line_no	accepted
 ecom_basic|order_items|gross_revenue|day,month	accepted
-ecom_basic|order_items|gross_revenue|day,order_customer_id	accepted
 ecom_basic|order_items|gross_revenue|line_no	accepted
 ecom_basic|order_items|gross_revenue|month	accepted
 ecom_basic|order_items|gross_revenue|order_customer_id	accepted
@@ -1237,3 +1236,5 @@ scd2_current|orders|revenue|segment	UnreachableAtGrain
 scd2_current|orders|revenue|signed_up_at	UnreachableAtGrain
 scd2_current|orders|revenue|week	accepted
 scd2_current|orders|revenue|year	accepted
+ecom_basic|order_items|gross_revenue|day,extensions	accepted
+ecom_basic|order_items|gross_revenue|extensions	accepted

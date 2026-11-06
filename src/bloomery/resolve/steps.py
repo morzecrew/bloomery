@@ -49,13 +49,14 @@ from bloomery.ir import (
     canon,
     step_sort_key,
 )
-from bloomery.resolve.refs import relationship_column_errors, step_written
+from bloomery.resolve.refs import carried_fields, relationship_column_errors, step_written
 from bloomery.spec.common import (
     MAX_SQL_DEPTH,
     RESERVED_MEMBER_REASONS,
     SQLGLOT_PARSE_FAILURES,
     sql_depth,
 )
+from bloomery.spec.project import produced_fields
 from bloomery.steps import EMPTY_REGISTRY
 from bloomery.transforms.registry import neutral_type
 from bloomery.typing import assignable, parse_type
@@ -562,12 +563,25 @@ def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, dic
     types, by the bare name the naming policy reads (S-0034/D-57): a declared
     entity's fields, and a step output's ``produces``. A relation the project
     does not declare is absent — a silver table kept outside bloomery is legal,
-    and its columns are nobody's to know here."""
+    and its columns are nobody's to know here.
 
-    columns = {
-        name: {field_name: field.type for field_name, field in entity.fields.items()}
-        for name, entity in project.entity_model.entities.items()
-    }
+    A mapped entity's are the ones its silver model carries
+    (:func:`~bloomery.resolve.refs.carried_fields`, #404): a step reading a
+    field left out would compile and fail at run time.
+    """
+
+    produced = produced_fields(project)
+    columns: dict[str, dict[str, str]] = {}
+
+    for name, entity in project.entity_model.entities.items():
+        carried = (
+            carried_fields(name, entity, produced[name]) if name in produced else entity.fields
+        )
+        columns[name] = {
+            field_name: field.type
+            for field_name, field in entity.fields.items()
+            if field_name in carried
+        }
 
     for wiring in project.steps.steps if project.steps is not None else ():
         try:
@@ -623,7 +637,8 @@ def _check_input_columns(
             msg = (
                 f"step {wiring.use!r} input {name!r} requires {', '.join(missing)}, which "
                 f"{bound!r} does not carry; its columns: {', '.join(sorted(columns)) or '(none)'}. "
-                "Fix: bind a relation that carries them, or declare them on it"
+                "Fix: bind a relation that carries them, or declare them on it; a required "
+                "entity field is carried only where a mapping produces it"
             )
             errors.append(StepError(msg, source_path=_path(wiring)))
 

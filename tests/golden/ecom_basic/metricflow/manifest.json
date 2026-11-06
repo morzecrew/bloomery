@@ -95,6 +95,18 @@
           "is_partition": false,
           "label": null,
           "metadata": null,
+          "name": "extensions",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "datatype": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
           "name": "line_no",
           "type": "categorical",
           "type_params": null

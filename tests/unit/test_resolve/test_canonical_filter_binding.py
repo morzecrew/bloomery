@@ -110,6 +110,27 @@ def test_the_template_compiles_and_reads_the_project_s_columns() -> None:
     assert metric.semi_additive.over.dimension == "stock_date"
 
 
+def test_a_field_no_mapping_produces_does_not_shadow_the_link() -> None:
+    """#404 fills a field no mapping produces with a typed NULL. Spelled as the
+    canonical a mapped field links, the fill was the column "spelled as
+    written", so the filter and the `over` axis read NULL instead of the
+    linked columns. Such a field stays out of the model."""
+    sources = _sources()
+    linked = "      stock_date: {type: date, required: true, canonical: stock_at}\n"
+    assert sources["entity_model"].count(linked) == 1
+    sources["entity_model"] = sources["entity_model"].replace(
+        linked, linked + "      warehouse_code: {type: string}\n      stock_at: {type: date}\n"
+    )
+    ir = build_project_ir(load_project(sources), _catalog())
+    metric = _metric(ir)
+
+    assert [clause.dimension for clause in metric.filter] == ["warehouse_id"]
+    assert metric.semi_additive is not None
+    assert metric.semi_additive.over.dimension == "stock_date"
+    (entity,) = (e for e in ir.entities if e.name == "inventory_level")
+    assert {"warehouse_code", "stock_at"}.isdisjoint(c.name for c in entity.columns)
+
+
 def test_a_name_no_column_links_keeps_its_literal_reading() -> None:
     """The fixture's own metric names its columns as they are spelled."""
     ir = _build()

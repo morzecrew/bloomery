@@ -226,6 +226,8 @@ marts:
         "order_date",
         "order_id",
         "order_order_id",
+        # Declared on `order` and mapped by no one: a NULL column (#404).
+        "order_warehouse_id",
         "ordered_at_day",
         "ordered_at_month",
         "ordered_at_quarter",

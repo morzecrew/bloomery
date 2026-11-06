@@ -1206,10 +1206,10 @@ def _check_expression_rules(
         expected=f"the lowered entity {entity_name!r}",
         by="the caller, which skips an entity no mapping targets",
     )
-    # The **lowered** columns, not the declared fields. A field the entity
-    # declares but no mapping fills is never projected, so a rule naming one
-    # compiled clean and then failed on the binder — the very failure this
-    # check exists to move forward. Casefolded because an unquoted SQL
+    # The **lowered** columns, not the declared fields, so the set is what
+    # the model projects — the binder failure this check exists to move
+    # forward. A field no mapping fills is projected too, as a typed NULL
+    # (#404), so a rule may read it. Casefolded because an unquoted SQL
     # identifier is case-insensitive on all three targets, so a rule may say
     # `AMT` where the field is `amt`.
     readable = {column.name.casefold() for column in lowered.columns}

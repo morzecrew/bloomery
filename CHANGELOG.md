@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a wiring may leave it out. The body reads it by name, as the bound relation,
   which must carry those columns, or unbound as an empty relation of them. (#402)
 
+### Fixed
+
+- **An entity field no mapping produces is a NULL column of its silver model.** It was
+  left out, so a step whose input `requires` it compiled and then failed on the engine
+  (`Binder Error: … does not have a column named …`). The column is now typed NULL, as a
+  field only some of a merged entity's sources map already was, so marts and the semantic
+  layers carry it too. Three kinds stay out: a required field the one mapping omits, a
+  vector field, and a field spelled as a canonical that a mapped field links, which a
+  metric's filter would otherwise read as written. A step that requires one of them is
+  refused at compile. (#404)
+
 ## [0.11.2] - 2026-11-05
 
 ### Fixed
