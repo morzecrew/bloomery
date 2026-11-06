@@ -102,7 +102,14 @@ a type assignable to the declared one, as `decimal(10,2)` is to
 of the declared columns, cast to their types as the target spells them, so
 the join finds nothing and the body needs no conditionals. A body that never
 reads the input by its name is refused whether it is bound or not, as is a
-body whose CTE of that name hides it.
+body whose CTE of that name hides every read of it. A CTE hides the name only
+where it is in scope, as in SQL.
+
+A read may alias the input, but not rename its columns with a column list
+(`returns AS r(pid, qty)`): the list renames by position, and the bound
+relation's columns are in its own order while the empty relation's are in the
+declared one. A `vector` column cannot be declared, since nothing casts a NULL
+to a vector.
 
 Binding or unbinding an optional input restates the step's outputs, as
 rewiring any input does. An unbound input has no edge in lineage.

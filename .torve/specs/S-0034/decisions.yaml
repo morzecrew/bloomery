@@ -952,11 +952,12 @@ decisions:
     text: >-
       A `sql_model` input may be declared `optional: true` with typed `columns:`, and
       a wiring may leave it unbound. The body reads an optional input by the input's
-      name, as a bare table that is not one of its CTEs, and a body that never does is
-      refused bound or not. Unbound, each such read becomes an empty relation of the
-      declared columns cast to their types; bound, the relation the wiring binds, whose
-      columns must include every declared one with a type assignable to it. An optional
-      input declares no `requires`, a required one no `columns`, and no other kind
+      name, as a bare table that no CTE in scope defines, and a body that never does is
+      refused bound or not, as is a read whose alias renames its columns by position.
+      Unbound, each such read becomes an empty relation of the declared columns cast to
+      their types; bound, the relation the wiring binds, whose columns must include
+      every declared one with a type assignable to it. An optional input declares no
+      `requires` and no vector column, a required one no `columns`, and no other kind
       declares an optional input
     paths:
       - src/bloomery/steps/manifest.py
