@@ -314,6 +314,15 @@ def test_a_cte_hides_the_input_only_where_it_is_in_scope(body: str) -> None:
     assert "_blm_empty" in model
 
 
+def test_a_read_that_renames_its_columns_by_position_is_refused() -> None:
+    """The bound relation's columns are in its own order and the empty
+    relation's in the declared one, so a column list would rename different
+    columns bound and unbound."""
+    body = BODY.replace("LEFT JOIN returns AS r ON", "LEFT JOIN returns AS r(product_id, quantity) ON")
+    with pytest.raises(StepError, match=r"renames the columns of optional input returns by position"):
+        build_project_ir(project(returns=True), steps=registry(body))
+
+
 # ....................... #
 # Plan and lineage
 

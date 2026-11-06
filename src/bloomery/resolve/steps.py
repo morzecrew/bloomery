@@ -915,7 +915,9 @@ def _read_optional_inputs(
     input's name as one, so a column qualified by either still resolves.
 
     A body that never reads the input by name is refused, bound or not, so a
-    body that works only while bound is found by the project that binds it.
+    body that works only while bound is found by the project that binds it. So
+    is a read whose alias renames the columns by position: the bound relation's
+    columns are in its own order and the empty relation's in the declared one.
 
     The empty relation is cast to the declared types, which the dialect spells
     at emit, and it has a ``FROM`` so the ``WHERE`` is legal on an engine that
@@ -957,6 +959,18 @@ def _read_optional_inputs(
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 
+    if renamed := sorted(
+        {name for name, node in reads if node.args.get("alias") and node.args["alias"].columns}
+    ):
+        msg = (
+            f"step {wiring.use!r} renames the columns of optional input {', '.join(renamed)} by "
+            "position, in its alias's column list. The bound relation's columns are in its own "
+            "order and the empty relation's in the declared one, so the list would rename "
+            "different columns bound and unbound (S-0034/D-61). Fix: alias the columns in the "
+            "select list instead"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+
     if errors:
         return tree, errors
 
@@ -964,7 +978,7 @@ def _read_optional_inputs(
         name = named(node) if isinstance(node, exp.Table) else None
         if name is None:
             return node
-        alias = exp.TableAlias(this=(node.args["alias"].this if node.alias else node.this).copy())
+        alias = node.args["alias"].copy() if node.alias else exp.TableAlias(this=node.this.copy())
         bound = wiring.inputs.get(name)
         if bound is not None:
             relation = exp.to_table(bound)
