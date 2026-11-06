@@ -135,6 +135,8 @@ def flat(sql: str) -> str:
         ({"grain": "return_line", "columns": {"quantity": "int"}}, "only an optional input"),
         (RETURNS | {"requires": ["quantity"]}, "its columns are what it requires"),
         (RETURNS | {"columns": {"quantity": "integer"}}, "integer"),
+        # No neutral cast makes a vector of a NULL, so an unbound one has no type.
+        (RETURNS | {"columns": {"embedding": "vector(float32, 3)"}}, "vector"),
     ],
 )
 def test_an_optional_input_is_declared_with_its_typed_columns_alone(

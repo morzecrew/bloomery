@@ -146,6 +146,16 @@ class StepInput(SpecModel):
             )
             raise ValueError(msg)
 
+        if vectors := sorted(
+            name for name, text in self.columns.items() if text.startswith("vector(")
+        ):
+            msg = (
+                f"an optional input declares vector column(s) {', '.join(vectors)}; unbound, "
+                "each column reads as a NULL cast to its type, and nothing casts to a vector. "
+                "Fix: read the vector from a required input"
+            )
+            raise ValueError(msg)
+
         if self.optional and self.requires:
             msg = (
                 "an optional input declares requires, but its columns are what it requires. "
