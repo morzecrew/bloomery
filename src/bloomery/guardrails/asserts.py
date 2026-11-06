@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 from bloomery.errors import AssertLoweringError, GuardrailError
 from bloomery.ir import AuditIR
+from bloomery.spec.project import produced_fields
 from bloomery.typing import (
     DateType,
     DecimalType,
@@ -179,6 +180,12 @@ def lower_asserts(
     the stage when the whole project is violation-free).
     """
     columns = {entity.name: {column.name for column in entity.columns} for entity in draft.entities}
+    # A mapped entity's fields as its mappings produce them, not as its silver
+    # model carries them: a field no mapping produces is a NULL column there
+    # (#404), and an audit over it judges no source's data.
+    for name, fields in produced_fields(project).items():
+        if name in columns:
+            columns[name] &= fields
     errors: list[GuardrailError] = []
     audits: dict[str, list[AuditIR]] = {}
 

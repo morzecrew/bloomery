@@ -741,6 +741,30 @@ def _branch_facts(entity: Entity, mapping: Mapping, column: str) -> _BranchFacts
 # ....................... #
 
 
+def _column_ir(name: str, field: Field, declared: LogicalType, catalog: Catalog | None) -> ColumnIR:
+    """The entity's column for one declared field: the schema half of
+    :func:`_column_pair`, from the entity model and the catalog alone."""
+    unit, tax_basis, description = _catalog_metadata(field, catalog)
+    return ColumnIR(
+        name=name,
+        type=declared,
+        canonical=field.canonical,
+        unit=unit,
+        tax_basis=tax_basis,
+        renamed_from=field.renamed_from,
+        required=field.required,
+        # The field's own description wins over its canonical's (S-0094/D-2).
+        description=field.description or description,
+        classification=field.classification,
+        determines=field.determines,
+        label=field.label,
+        synonyms=tuple(sorted(field.synonyms)),
+    )
+
+
+# ....................... #
+
+
 def _column_pair(
     name: str,
     field: Field,
@@ -764,23 +788,8 @@ def _column_pair(
     come from the mapping and are the only things a second source would spell
     differently.
     """
-    unit, tax_basis, description = _catalog_metadata(field, catalog)
     return (
-        ColumnIR(
-            name=name,
-            type=declared,
-            canonical=field.canonical,
-            unit=unit,
-            tax_basis=tax_basis,
-            renamed_from=field.renamed_from,
-            required=field.required,
-            # The field's own description wins over its canonical's (S-0094/D-2).
-            description=field.description or description,
-            classification=field.classification,
-            determines=field.determines,
-            label=field.label,
-            synonyms=tuple(sorted(field.synonyms)),
-        ),
+        _column_ir(name, field, declared, catalog),
         SourceColumnIR(
             name=name,
             expr=canon(expr),
@@ -1666,8 +1675,9 @@ def _filled(source: SourceIR, columns: tuple[ColumnIR, ...]) -> SourceIR:
     depend on which branch the engine reads first, and the whole point of a
     fixed branch order is that nothing downstream depends on it.
 
-    The identity on a single-source entity, where the schema is exactly what
-    the one mapping produced.
+    A single-source entity is filled too: a declared field its one mapping
+    does not produce is NULL there for the same reason, and without the
+    projection its column is absent from silver (#404).
     """
     projected = {column.name for column in source.columns}
     missing = [column for column in columns if column.name not in projected]
@@ -1724,6 +1734,18 @@ def _build_entity(
     # sources — not the intersection, which would silently drop a field only
     # one system carries.
     schema = {column.name: column for columns, _source in built for column in columns}
+    # …and every optional field no mapping produces, NULL on every branch
+    # (§5.2 rule 3), so a reader of a declared field — a step's ``requires``
+    # among them — reads a column that exists (#404). A required one stays
+    # out: `required` is read as "never NULL" by the dimension and additivity
+    # proofs, and refusing the omission on one mapping is a widening D4 does
+    # not authorize (`test_a_single_mapping_may_still_omit_a_required_field`).
+    # `resolve.steps._relation_columns` leaves the same fields out.
+    schema.update(
+        (name, _column_ir(name, field, _field_type(entity_name, name, field), catalog))
+        for name, field in entity.fields.items()
+        if name not in schema and not field.required
+    )
     columns = tuple(sorted(schema.values(), key=lambda column: column.name))
     return EntityIR(
         name=entity_name,

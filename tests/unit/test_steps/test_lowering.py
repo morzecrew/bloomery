@@ -741,13 +741,17 @@ def test_an_unreserved_produced_column_still_lowers() -> None:
 # An input's `requires` against the relation it binds (S-0034/D-57)
 
 
-def _bound_to_entity(email: bool, **manifest_overrides: object):  # noqa: ANN202 — ProjectIR
+def _bound_to_entity(  # noqa: ANN202 — ProjectIR
+    email: bool, *, unmapped: str = "", **manifest_overrides: object
+):
     """The default wiring, with `silver.customer_raw` declared as an entity
-    that carries `email` or does not."""
+    that carries `email` or does not; `unmapped` declares fields no mapping
+    produces."""
     entity_model = (
         "spec_version: 1\nentities:\n  customer_raw:\n    grain: one row per source customer\n"
         "    key: [source_id]\n    fields:\n      source_id: {type: string, required: true}\n"
         + ("      email: {type: string}\n" if email else "")
+        + unmapped
     )
     mapping = (
         "mapping_version: 1\ntarget: customer_raw\nsource: bronze.crm__customers\n"
@@ -765,6 +769,23 @@ def test_a_required_column_the_bound_entity_lacks_is_refused() -> None:
     engine found it at run time."""
     with pytest.raises(StepError, match=r"input 'raw' requires email, which 'silver.customer_raw'"):
         _bound_to_entity(email=False)
+
+
+def test_a_declared_field_no_mapping_produces_is_carried() -> None:
+    """#404: an optional field no mapping produces is a NULL column of the
+    entity's silver model, so a step requiring it reads a column that exists
+    (`tests/execution/test_unmapped_field.py` runs one)."""
+    ir = _bound_to_entity(email=False, unmapped="      email: {type: string}\n")
+    (entity,) = [e for e in ir.entities if e.name == "customer_raw"]
+    assert "email" in {column.name for column in entity.columns}
+
+
+def test_a_required_field_no_mapping_produces_is_refused() -> None:
+    """#404: a required field one mapping omits is left out of the silver
+    model, which S-0041/D-4 refuses only on a merge, so a step requiring it
+    is refused here rather than by the engine."""
+    with pytest.raises(StepError, match=r"input 'raw' requires email, which 'silver.customer_raw'"):
+        _bound_to_entity(email=False, unmapped="      email: {type: string, required: true}\n")
 
 
 def test_a_bound_entity_carrying_every_required_column_is_accepted() -> None:

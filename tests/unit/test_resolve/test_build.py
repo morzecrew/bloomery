@@ -22,6 +22,7 @@ from bloomery.ir import (
     Materialization,
     SCDKind,
     PartitionSpec,
+    SourceIR,
     UnreachableMetric,
 )
 from bloomery.dialects.base import _exact_division
@@ -267,6 +268,7 @@ def test_ecom_basic_mart_lowers_to_the_flattened_wide_schema() -> None:
     assert mart.name == "order_items"
     assert mart.grain == mart.base == "order_item"
     assert [c.name for c in mart.columns] == [
+        "extensions",  # declared, mapped by no one: a NULL column (#404)
         "line_no",
         "order_customer_id",
         "order_date",
@@ -580,9 +582,15 @@ fields:
 def test_a_single_mapping_may_still_omit_a_required_field() -> None:
     """The converse of D4, and the reason it is scoped to a merge: the
     coverage asymmetry predates this RFC (§5.2 rule 2) and widening it here
-    would be a compatibility break the RFC does not authorize."""
+    would be a compatibility break the RFC does not authorize.
+
+    The omitted required field stays out of the model rather than becoming a
+    NULL column (#404), because `required` is read as "never NULL" by the
+    dimension and additivity proofs. The optional one beside it is filled."""
     sources = {
-        "entity_model": _MERGE_ENTITY_MODEL,
+        "entity_model": _MERGE_ENTITY_MODEL.replace(
+            "note: {type: string}", "note: {type: string, required: true}"
+        ),
         "mapping_z": """\
 mapping_version: 1
 source: src_z
@@ -593,7 +601,34 @@ key:
     }
     ir = build_project_ir(load_project(sources))
     (entity,) = ir.entities
-    assert [column.name for column in entity.columns] == ["event_id"]
+    assert [column.name for column in entity.columns] == ["event_id", "kind"]
+
+
+@pytest.mark.parametrize("merged", [False, True], ids=["single", "merged"])
+def test_an_optional_field_no_mapping_produces_is_a_typed_null_column(merged: bool) -> None:
+    """#404: the schema was the union of what the mappings produce, so a field
+    none of them maps was left out of the silver model and a step requiring it,
+    checked against the declared fields, compiled and failed on the binder.
+    §5.2 rule 3's typed NULL now fills it on every branch."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      note: {type: string}\n", "      note: {type: string}\n      cost: {type: int}\n"
+    )
+    sources = (
+        _merge_sources(entity_model=model)
+        if merged
+        else {"entity_model": model, "mapping_z": _SRC_A_MAPPING}
+    )
+    (entity,) = build_project_ir(load_project(sources)).entities
+
+    assert "cost" in {column.name for column in entity.columns}
+    assert {source.relation: _projection(source, "cost") for source in entity.sources} == {
+        relation: "CAST(NULL AS BIGINT)" for relation in (("src_a", "src_z") if merged else ("src_a",))
+    }
+
+
+def _projection(source: SourceIR, column: str) -> str:
+    """One branch's projection of ``column``, as DuckDB SQL."""
+    return next(c.expr.ast() for c in source.columns if c.name == column).sql("duckdb")
 
 
 def test_a_merged_entity_carries_dedupe_and_quarantine() -> None:

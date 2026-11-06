@@ -56,6 +56,7 @@ from bloomery.spec.common import (
     SQLGLOT_PARSE_FAILURES,
     sql_depth,
 )
+from bloomery.spec.project import produced_fields
 from bloomery.steps import EMPTY_REGISTRY
 from bloomery.typing import parse_type
 
@@ -534,10 +535,21 @@ def _relation_columns(project: Project, registry: StepRegistry) -> dict[str, fro
     the naming policy reads (S-0034/D-57): a declared entity's fields, and a
     step output's ``produces``. A relation the project does not declare is
     absent — a silver table kept outside bloomery is legal, and its columns
-    are nobody's to know here."""
+    are nobody's to know here.
 
+    A mapped entity's silver model carries every field but a required one no
+    mapping produces, which ``resolve.build._build_entity`` leaves out (#404):
+    a step reading it would compile and fail at run time.
+    """
+
+    produced = produced_fields(project)
     columns = {
-        name: frozenset(entity.fields) for name, entity in project.entity_model.entities.items()
+        name: frozenset(
+            field_name
+            for field_name, field in entity.fields.items()
+            if not field.required or name not in produced or field_name in produced[name]
+        )
+        for name, entity in project.entity_model.entities.items()
     }
 
     for wiring in project.steps.steps if project.steps is not None else ():
@@ -585,7 +597,8 @@ def _check_input_columns(
             msg = (
                 f"step {wiring.use!r} input {name!r} requires {', '.join(missing)}, which "
                 f"{bound!r} does not carry; its columns: {', '.join(sorted(columns)) or '(none)'}. "
-                "Fix: bind a relation that carries them, or declare them on it"
+                "Fix: bind a relation that carries them, or declare them on it; a required "
+                "entity field is carried only where a mapping produces it"
             )
             errors.append(StepError(msg, source_path=_path(wiring)))
 

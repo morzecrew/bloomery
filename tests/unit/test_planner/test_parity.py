@@ -367,11 +367,16 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     the only thing it is kept for.
 
     And by 8 when :func:`_restricted` gave the generator a metric carrying its
-    own restriction (S-0082/D-1), recorded with their merge-base outcome."""
+    own restriction (S-0082/D-1), recorded with their merge-base outcome.
+
+    And by 1 when `ecom_basic`'s `extensions`, declared and mapped by no one,
+    became a NULL column of its silver model and so a mart dimension (#404):
+    two requests over it were appended, and `day,order_customer_id` left, since
+    `extensions` now sorts into the first three pairs."""
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 1239
+    assert len(outcomes) == 1240
 
 
 #: What S-0055/phasing (P-2) licenses, as moves rather than as a list of keys: the rule

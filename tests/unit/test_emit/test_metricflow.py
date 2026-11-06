@@ -183,6 +183,7 @@ def test_dimensions_are_day_time_plus_categoricals() -> None:
     assert by_name["ordered_day"].type_params.time_granularity is TimeGranularity.DAY
     categoricals = {n for n, d in by_name.items() if d.type is DimensionType.CATEGORICAL}
     assert categoricals == {
+        "extensions",  # declared, mapped by no one: a NULL column (#404)
         "line_no",
         "order_customer_id",
         "order_date",

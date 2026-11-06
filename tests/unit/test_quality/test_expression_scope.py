@@ -163,13 +163,16 @@ def test_a_legitimate_rule_still_reaches_the_emitted_sql() -> None:
 # Round two of review, each reproduced before it was fixed
 
 
-def test_a_declared_field_no_mapping_lowers_is_refused() -> None:
-    """``ghost`` is declared on the entity and filled by no mapping, so it is
-    never projected — the scope check read *declared fields* and let it
-    through, which is the binder failure this module exists to prevent wearing
-    a different hat. The readable set is now the lowered columns."""
-    with pytest.raises(GuardrailError, match="reads ghost"):
-        compile_silver("ghost > 0")
+def test_a_declared_field_no_mapping_lowers_is_read_as_null() -> None:
+    """``ghost`` is declared on the entity and filled by no mapping. It used to
+    be left out of the model, so a rule naming it compiled clean and failed on
+    the binder, and the readable set became the lowered columns. It is now a
+    typed NULL column of the model (#404), so the rule reads a column that is
+    there, as it does on a merged branch that does not map the field."""
+    silver = compile_silver("ghost > 0")
+
+    assert "CAST(NULL AS BIGINT) AS ghost" in silver
+    assert "_extract.ghost > 0" in silver
 
 
 @pytest.mark.parametrize("expr", ["amt", "amt + 1"])

@@ -90,6 +90,24 @@ class Project:
     retrieval: RetrievalSpec | None = None
 
 
+def produced_fields(project: Project) -> dict[str, frozenset[str]]:
+    """The fields some mapping produces, under ``key:`` or ``fields:``, by the
+    entity it targets. An entity no mapping targets is absent.
+
+    Not the entity's columns: a declared field no mapping produces is a NULL
+    column of its silver model (#404), and a reader that needs a value, an
+    ``assert:`` or a step's ``requires`` on a required field, needs this set.
+    """
+    produced: dict[str, frozenset[str]] = {}
+
+    for mapping in project.mappings:
+        produced[mapping.target] = produced.get(mapping.target, frozenset()).union(
+            mapping.key, mapping.fields
+        )
+
+    return produced
+
+
 # ....................... #
 
 

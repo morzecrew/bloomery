@@ -464,6 +464,12 @@ Every mapping must produce the entity's **full declared key** and **every requir
 
 - Paths: `src/bloomery/guardrails/conflict.py` `src/bloomery/guardrails/stage.py` `src/bloomery/resolve/build.py` `tests/execution/test_path_conflict.py` `tests/fixtures/path_conflict_merged/entity_model.yaml` `tests/fixtures/path_conflict_merged/mapping_legacy.yaml` `tests/golden/test_sqlmesh_duckdb.py` `tests/unit/test_fixtures.py` `tests/unit/test_guardrails/test_conflict.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_resolve/test_resolution.py`
 
+### S-0041/D-37 — `ASSUMED` (Deterministic union merge)
+
+**§5.2 rule 3 reaches a field no mapping produces.** The schema was the union of what the mappings produce, so a declared optional field none of them maps was left out of the silver model, on one mapping or on a merge. A step input's `requires`, checked against the declared fields (S-0034/D-57), then compiled and failed on the engine's binder (#404). Such a field is now a typed NULL column on every branch, as one only some mappings produce already was, so marts flatten it and the semantic layers carry it. Three things stay as they were, each for a stated reason. **A required field a single mapping omits stays out of the model:** `required` is read as "never NULL" by the dimension and additivity proofs, so filling it would make both false, and refusing it is the widening D4 declined. A step whose `requires` names it is refused instead, against the columns the model will have. **An `assert:` on a field no mapping produces stays refused:** a range, enum or regex audit over a column NULL on every row passes every run and judges no source's data. **Metric reachability is unchanged:** a canonical is available only through a mapping's `canonical` edge, which an unmapped field does not draw. An `expression` rule may read the column, since the binder failure its scope check moved forward no longer exists, and does on a merged branch already.
+
+- Paths: `src/bloomery/resolve/build.py` `src/bloomery/resolve/steps.py` `src/bloomery/guardrails/asserts.py` `src/bloomery/spec/project.py` `tests/execution/test_unmapped_field.py` `tests/unit/test_resolve/test_build.py` `tests/unit/test_steps/test_lowering.py`
+
 ### S-0046/D-1 — `ASSUMED` (Transform types the engine agrees with)
 
 A builder is told its **input logical type**. `Builder` becomes `(input type, column AST, *args) -> AST` or gains it by keyword; the declaration and the construction then read the same fact. This is the enabling change for §2.1 and §2.2.
