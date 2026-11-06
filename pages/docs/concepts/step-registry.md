@@ -52,6 +52,7 @@ outputs:
       confidence:   {type: decimal(4,3), label: Match confidence}
 parameters:
   threshold: {type: decimal(4,3), default: 0.85, min: 0, max: 1}
+  allocate:  {type: string, values: [none, revenue, units], default: none}
 lineage: coarse
 ```
 
@@ -59,6 +60,13 @@ lineage: coarse
 difference matters — a grain sentence cannot be checked, a key can. A
 `produces:` column may carry a `label`, which the output entity's column takes
 as a mapped field's would. Changing it restates nothing.
+
+A parameter's `min` and `max` bound a number, inclusively. `values` closes a
+`string` parameter over the names it may take, so a wiring that sets
+`allocate: revenu` is refused with a `StepError` listing `none, revenue, units`
+rather than running whichever branch the body falls through to. The manifest
+itself is refused if its `default` is not one of its `values`, or if a
+parameter of any other type declares them.
 
 An input's `requires` names the columns the step reads, and it is a lower bound
 the compile checks. When the wiring binds the input to an entity the project

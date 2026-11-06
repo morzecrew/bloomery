@@ -179,7 +179,8 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
 
 
 def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
-    """Parameters must be declared and within their declared bounds (§5.2).
+    """Parameters must be declared, within their declared bounds (§5.2), and
+    one of their declared values where the manifest lists them (D-60).
 
     This is the enforcement half of "parameterize, never fork" (§5.7): bounds
     are only a contract if setting a value outside them is an error, and a
@@ -198,6 +199,12 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
 
     for name in sorted(set(wiring.parameters) & set(manifest.parameters)):
         spec, value = manifest.parameters[name], wiring.parameters[name]
+        if spec.values is not None and str(value) not in spec.values:
+            msg = (
+                f"step {wiring.use!r} sets parameter {name!r} to {str(value)!r}, which is "
+                f"not one of {', '.join(spec.values)}, the values the manifest declares"
+            )
+            errors.append(StepError(msg, source_path=_path(wiring)))
         if spec.min is None and spec.max is None:
             continue
         try:
