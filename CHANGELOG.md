@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Lineage reaches the columns a metric's `filter:` reads.** Walking upstream from a
+  metric now shows each column a `dimension:` or `column:` names, on a `filter` edge of
+  its own, so "where does this number come from?" includes which rows count. A column
+  that a mart carrying the metric flattens in from a related entity, such as
+  `order_customer_id`, now leads to that entity's field, in an `expr` as in a filter,
+  where every such mart flattens it from the same field. `plan().downstream_impact` is
+  unchanged. (#410)
+
 ## [0.12.0] - 2026-11-06
 
 ### Added

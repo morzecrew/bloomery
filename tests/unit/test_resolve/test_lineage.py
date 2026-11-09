@@ -455,9 +455,10 @@ def test_an_expression_metric_walks_upstream_to_bronze() -> None:
 
 
 def test_a_name_that_is_no_field_of_the_grain_draws_no_edge() -> None:
-    """An `expr` may name a flattened mart column or a function's argument
-    that is no field of the grain entity; only the grain's fields are what the
-    edge claims the metric reads."""
+    """An `expr` may name something that is neither a field of the grain nor
+    a column a mart carrying the metric flattens in, such as a function's
+    argument; the edge claims only what the metric reads. `order_count` is no
+    mart's measure, so only its grain's fields count."""
     sources = fixture_sources("ecom_basic")
     old = '    expr: "order_id"\n'
     assert sources["metrics"].count(old) == 1
@@ -472,3 +473,143 @@ def test_a_name_that_is_no_field_of_the_grain_draws_no_edge() -> None:
     )
 
     assert {(edge.src.name, edge.label) for edge in walk.edges} == {("order.order_id", "expr")}
+
+
+def _walked(metric: str, **edits: tuple[str, str]) -> set[tuple[str, str]]:
+    """``metric``'s upstream edges at depth 1 in ``ecom_basic``, as ``(src,
+    label)``, after replacing the one occurrence of ``old`` in each named
+    document with ``new``."""
+    sources = fixture_sources("ecom_basic")
+    for document, (old, new) in edits.items():
+        assert sources[document].count(old) == 1
+        sources[document] = sources[document].replace(old, new)
+    _project, catalog = load_fixture("ecom_basic")
+
+    walk = lineage(
+        resolve(load_project(sources), catalog).graph,
+        node(f"metric.{metric}", NodeKind.METRIC),
+        Direction.UPSTREAM,
+        max_depth=1,
+    )
+
+    return {(edge.src.name, edge.label) for edge in walk.edges}
+
+
+#: `order_customer_id` is `order.customer_id`, flattened onto the `order_items`
+#: mart under the `order_` prefix; `line_customers` is that mart's measure.
+LINE_CUSTOMERS = (
+    "    expr: \"order_id\"\n",
+    "    expr: \"order_id\"\n"
+    "  line_customers:\n"
+    "    grain: order_item\n"
+    "    additivity: additive\n"
+    "    agg: count\n"
+    "    expr: \"order_customer_id\"\n",
+)
+MART_MEASURES = "    measures: [gross_revenue]\n"
+
+
+def test_a_filter_draws_an_edge_from_each_column_it_names() -> None:
+    """The reported walk (#410): a metric's `filter:` decides which rows count,
+    and drew nothing. A `dimension:` and a `column:` each draw a `filter` edge,
+    from a grain field or from the field a mart flattens in, apart from the
+    `expr` edges (S-0048/D-11)."""
+    edges = _walked(
+        "gross_revenue",
+        metrics=(
+            "    template: gross_revenue\n",
+            "    template: gross_revenue\n"
+            "    filter:\n"
+            "      - {dimension: line_no, op: gt, values: [0]}\n"
+            "      - {dimension: order_customer_id, op: ne, column: order_order_id}\n",
+        ),
+    )
+
+    assert {src for src, label in edges if label == "filter"} == {
+        "order_item.line_no",
+        "order.customer_id",
+        "order.order_id",
+    }
+    assert {src for src, label in edges if label == "expr"} == {
+        "order_item.quantity",
+        "order_item.unit_price",
+    }
+
+
+def test_an_expr_draws_an_edge_from_a_flattened_column() -> None:
+    """The second gap in #410: an `expr` over a column the mart flattens in
+    from a related entity reaches the field it is flattened from."""
+    edges = _walked(
+        "line_customers",
+        metrics=LINE_CUSTOMERS,
+        marts=(MART_MEASURES, "    measures: [gross_revenue, line_customers]\n"),
+    )
+
+    assert edges == {("order.customer_id", "expr")}
+
+
+@pytest.mark.parametrize(
+    ("prefix", "measure", "expected"),
+    [
+        pytest.param("order_", "line_customers", {("order.customer_id", "expr")}, id="agreeing"),
+        pytest.param("order_customer_", "line_customers", set(), id="disagreeing"),
+        pytest.param(
+            "order_customer_", "gross_revenue", {("order.customer_id", "expr")}, id="not-carrying"
+        ),
+    ],
+)
+def test_a_flattened_name_counts_only_where_every_mart_carrying_it_agrees(
+    prefix: str, measure: str, expected: set[tuple[str, str]]
+) -> None:
+    """A second mart flattens `order`. Under `order_customer_`, it spells
+    `order.id` as `order_customer_id`, which the first mart flattens from
+    `order.customer_id`. Where both carry `line_customers` the name stands for
+    two fields and draws nothing; a mart that does not carry it reads none of
+    its columns."""
+    edges = _walked(
+        "line_customers",
+        metrics=LINE_CUSTOMERS,
+        entity_model=(
+            "      customer_id: {type: string, classification: pii}\n",
+            "      customer_id: {type: string, classification: pii}\n"
+            "      id: {type: string}\n",
+        ),
+        marts=(
+            MART_MEASURES + "    partition_by: [days(ordered_day)]\n    cost_hint: 2\n",
+            "    measures: [gross_revenue, line_customers]\n"
+            "    partition_by: [days(ordered_day)]\n"
+            "    cost_hint: 2\n"
+            "  line_customers_too:\n"
+            "    grain: order_item\n"
+            "    base: order_item\n"
+            "    flatten:\n"
+            f"      - {{via: item_of_order, prefix: {prefix}}}\n"
+            "      - {date: order_date, role: ordered}\n"
+            f"    measures: [{measure}]\n",
+        ),
+    )
+
+    assert edges == expected
+
+
+def test_a_grain_field_wins_over_a_flattened_name() -> None:
+    """With a `date` field on `order`, the mart's `order_` prefix spells it
+    `order_date`, which is also a field of the `order_item` grain. The mart
+    keeps the grain's column and refuses the flattened one, so a filter on
+    `order_date` reads the grain's field."""
+    edges = _walked(
+        "gross_revenue",
+        entity_model=(
+            "      customer_id: {type: string, classification: pii}\n",
+            "      customer_id: {type: string, classification: pii}\n"
+            "      date: {type: date}\n",
+        ),
+        metrics=(
+            "    template: gross_revenue\n",
+            "    template: gross_revenue\n"
+            "    filter:\n"
+            "      - {dimension: order_date, op: is_null, values: [false]}\n",
+        ),
+    )
+
+    assert {src for src, label in edges if label == "filter"} == {"order_item.order_date"}

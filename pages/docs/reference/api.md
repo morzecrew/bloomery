@@ -125,7 +125,8 @@ Each edge carries a **label** saying how one node feeds the next. The vocabulary
 | `canonical` | entity field → canonical field | the field links to a catalog canonical |
 | `requires` | canonical field → metric | a metric's leaf requirement |
 | `requires_metrics` | metric → metric | a metric composed of metrics |
-| `expr` | entity field → metric | a grain-entity column an expression metric's `expr` names, including a column a step produces; lineage only |
+| `expr` | entity field → metric | a column an expression metric's `expr` names: a field of its grain, including a column a step produces, or the field a mart carrying the metric flattens it in from; lineage only |
+| `filter` | entity field → metric | a column a metric's `filter:` names, as a `dimension:` or a `column:`, read on the same terms as `expr`; lineage only |
 | `step_input` | entity field → step | a step reading a relation whole: each field of a mapped entity, or each column another step produces |
 | `step_input` | step → step | a step reading another step's output, when `resolve` was given no manifest for it |
 | `step_output` | step → entity field | a step's declared output relation and, given its manifest, each column it produces |
