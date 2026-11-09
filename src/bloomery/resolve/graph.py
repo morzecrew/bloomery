@@ -689,8 +689,10 @@ def _metric_columns(
     under its prefix. Read off the authored marts document, like
     :func:`_mart_edges`, so lineage still answers on a project the flattener
     would refuse. A flattened name counts only where every mart carrying the
-    metric flattens it from the same field; a grain field wins over it, as the
-    flattener refuses a flattened column that collides with one.
+    metric that flattens it flattens it from the same field. A carrying mart
+    without the column draws nothing away: the guardrail refuses the metric
+    there, so it reads no field at all. A grain field wins over a flattened
+    name, as the flattener refuses a flattened column that collides with one.
     """
 
     marts = {} if project.marts is None else project.marts.marts

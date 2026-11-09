@@ -549,23 +549,39 @@ def test_an_expr_draws_an_edge_from_a_flattened_column() -> None:
 
 
 @pytest.mark.parametrize(
-    ("prefix", "measure", "expected"),
+    ("via", "measure", "expected"),
     [
-        pytest.param("order_", "line_customers", {("order.customer_id", "expr")}, id="agreeing"),
-        pytest.param("order_customer_", "line_customers", set(), id="disagreeing"),
         pytest.param(
-            "order_customer_", "gross_revenue", {("order.customer_id", "expr")}, id="not-carrying"
+            "      - {via: item_of_order, prefix: order_}\n",
+            "line_customers",
+            {("order.customer_id", "expr")},
+            id="agreeing",
         ),
+        pytest.param(
+            "      - {via: item_of_order, prefix: order_customer_}\n",
+            "line_customers",
+            set(),
+            id="disagreeing",
+        ),
+        pytest.param(
+            "      - {via: item_of_order, prefix: order_customer_}\n",
+            "gross_revenue",
+            {("order.customer_id", "expr")},
+            id="not-carrying",
+        ),
+        pytest.param("", "line_customers", {("order.customer_id", "expr")}, id="not-flattening"),
     ],
 )
 def test_a_flattened_name_counts_only_where_every_mart_carrying_it_agrees(
-    prefix: str, measure: str, expected: set[tuple[str, str]]
+    via: str, measure: str, expected: set[tuple[str, str]]
 ) -> None:
-    """A second mart flattens `order`. Under `order_customer_`, it spells
+    """A second mart over `order_item`. Under `order_customer_`, it spells
     `order.id` as `order_customer_id`, which the first mart flattens from
     `order.customer_id`. Where both carry `line_customers` the name stands for
-    two fields and draws nothing; a mart that does not carry it reads none of
-    its columns."""
+    two fields and draws nothing. A mart that does not carry the metric reads
+    none of its columns. One that carries it without flattening `order` is
+    refused the metric's `expr` by the guardrail, so it reads no field, and
+    the name still has the one reading the first mart gives it."""
     edges = _walked(
         "line_customers",
         metrics=LINE_CUSTOMERS,
@@ -583,7 +599,7 @@ def test_a_flattened_name_counts_only_where_every_mart_carrying_it_agrees(
             "    grain: order_item\n"
             "    base: order_item\n"
             "    flatten:\n"
-            f"      - {{via: item_of_order, prefix: {prefix}}}\n"
+            f"{via}"
             "      - {date: order_date, role: ordered}\n"
             f"    measures: [{measure}]\n",
         ),

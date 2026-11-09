@@ -169,8 +169,8 @@ decisions:
       by one label and one triple. A name in a filter or in an `expr` that is no field
       of the grain is read as a column that a `via:` step of a mart carrying the metric
       flattens in, and draws its edge from the field it is flattened from, where every
-      such mart flattens that name from the same field. A grain field wins over a flattened
-      name. Both kinds of edge are lineage only, as D-9's are
+      carrying mart that flattens that name flattens it from the same field. A grain field
+      wins over a flattened name. Both kinds of edge are lineage only, as D-9's are
     paths:
       - src/bloomery/resolve/graph.py
       - tests/unit/test_resolve/test_edge_vocabulary.py
@@ -181,10 +181,13 @@ decisions:
       count, and from a metric over flattened columns to the related entity's fields and
       on to bronze; a walk downstream from such a field reaches the metric. `plan().downstream_impact`
       still reads `depends_on`, so a change to a filter column does not reach the metric
-      there (D-9). Three names still draw nothing: a filter dimension spelled as a canonical
+      there (D-9). Four names still draw nothing: a filter dimension spelled as a canonical
       that a grain column links, which S-0022/D-11 reads through that column; a date
-      role's bucket columns; and a semi-additive metric's `over:` axis. The IR and every
-      fingerprint are unchanged
+      role's bucket columns; the generated `has_quality_flags`, which no field holds; and
+      a semi-additive metric's `over:` axis. `topo_order` follows the graph, so a filtered
+      metric now sorts after the columns its filter reads, where it could sort before them.
+      Nothing in the compiler reads `topo_order`, and the IR and every fingerprint are
+      unchanged
     rationale: >-
       A filter shapes the number as much as its expression does, and "where does this
       number come from?" left out which rows count (#410). A label of its own lets a
@@ -194,5 +197,7 @@ decisions:
       That is read off the authored marts document, so the graph still answers on a project
       the flattener refuses (S-0072/D-2). Two marts carrying one metric can flatten one
       name from different fields, and an edge from either would claim a source that the
-      other mart's number does not read
+      other mart's number does not read. A carrying mart that does not flatten the name
+      serves no number of the metric at all, since the guardrail refuses its filter or
+      its `expr` there, so the field the other marts agree on is the name's only reading
     cites: [D-6, D-9, S-0050/D-8, S-0072/D-2, S-0027/D-3]
