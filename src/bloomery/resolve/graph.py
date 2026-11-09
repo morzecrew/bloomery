@@ -24,10 +24,13 @@ from bloomery.spec.mapping import (
     RecipeFieldMapping,
     SimpleFieldMapping,
 )
+from bloomery.spec.marts import ViaStep
 from bloomery.spec.project import Project, key, node_keys
 from bloomery.steps import EMPTY_REGISTRY
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from bloomery.resolve.metrics import EffectiveMetric
     from bloomery.spec.mapping import Mapping
     from bloomery.steps import StepRegistry
@@ -121,8 +124,13 @@ _EDGE_SHAPES: Final[frozenset[tuple[str, NodeKind, NodeKind]]] = frozenset(
         ("canonical", NodeKind.ENTITY_FIELD, NodeKind.CANONICAL_FIELD),
         ("requires", NodeKind.CANONICAL_FIELD, NodeKind.METRIC),
         ("requires_metrics", NodeKind.METRIC, NodeKind.METRIC),
-        # An expression metric reads its grain entity's columns (S-0048/D-9).
+        # An expression metric reads its grain entity's columns (S-0048/D-9),
+        # and a column a mart carrying it flattens in from another entity
+        # (S-0048/D-11).
         ("expr", NodeKind.ENTITY_FIELD, NodeKind.METRIC),
+        # A metric's `filter:` reads the columns that decide which rows count,
+        # on the same terms as `expr` (S-0048/D-11).
+        ("filter", NodeKind.ENTITY_FIELD, NodeKind.METRIC),
         # A step reads a mapped entity whole, or another step's output. The
         # second form includes the self-edge a self-referencing binding emits
         # so that cycle detection has something to find — which means it is a
@@ -658,32 +666,83 @@ def node_labels(project: Project, catalog: Catalog | None) -> dict[str, str]:
 # ....................... #
 
 
-def _expr_fields(
-    metric: EffectiveMetric, project: Project, produced: dict[str, tuple[str, ...]]
-) -> tuple[str, ...]:
-    """The fields of a metric's grain entity its ``expr`` names, sorted
-    (S-0048/D-9).
+def _relation_fields(
+    relation: str, project: Project, produced: dict[str, tuple[str, ...]]
+) -> Collection[str]:
+    """The fields this graph has nodes for on ``relation``: a declared entity's
+    fields, or the columns a step's manifest says it produces (S-0048/D-10).
+    An imported entity has none, because this graph is built from the imports
+    document rather than the upstream IR."""
 
-    A measure's ``expr`` is emitted verbatim against the mart's columns, which
-    keep the base entity's field names, so these are what it reads. A name
-    that is no field of the grain (a flattened column, a qualified one) draws
-    nothing, and nor does an imported grain: this graph has no field nodes for
-    an entity the project does not declare. A grain a step writes has the
-    columns its manifest produces, where the registry holds it (S-0048/D-10).
-    Lineage only: ``depends_on`` and reachability never read these edges.
+    entity = project.entity_model.entities.get(relation)
+    return entity.fields.keys() if entity is not None else produced.get(relation, ())
+
+
+def _metric_columns(
+    metric: EffectiveMetric, project: Project, produced: dict[str, tuple[str, ...]]
+) -> dict[str, tuple[str, str]]:
+    """Each column name a metric can read, to the ``(entity, field)`` it comes
+    from (S-0048/D-9, D-11).
+
+    A measure is read against the mart's columns. The grain's fields keep
+    their names there, and a ``via:`` step flattens a related entity's fields
+    under its prefix. Read off the authored marts document, like
+    :func:`_mart_edges`, so lineage still answers on a project the flattener
+    would refuse. A flattened name counts only where every mart carrying the
+    metric that flattens it flattens it from the same field. A carrying mart
+    without the column draws nothing away: the guardrail refuses the metric
+    there, so it reads no field at all. A grain field wins over a flattened
+    name, as the flattener refuses a flattened column that collides with one.
     """
 
-    entity = project.entity_model.entities.get(metric.grain or "")
-    fields = entity.fields.keys() if entity is not None else produced.get(metric.grain or "")
+    marts = {} if project.marts is None else project.marts.marts
+    relationships = {rel.name: rel.to for rel in project.entity_model.relationships}
+    flattened: dict[str, set[tuple[str, str]]] = {}
 
-    if metric.expr is None or fields is None:
-        return ()
+    for mart in marts.values():
+        if metric.name not in mart.measures:
+            continue
+        for step in mart.flatten:
+            if not isinstance(step, ViaStep) or step.via not in relationships:
+                continue
+            joined = relationships[step.via]
+            for field in _relation_fields(joined, project, produced):
+                flattened.setdefault(f"{step.prefix}{field}", set()).add((joined, field))
 
-    named = {
+    # The one field a name stands for; `for source in found` reads it out of
+    # its one-member set.
+    columns = {
+        name: source for name, found in flattened.items() if len(found) == 1 for source in found
+    }
+    grain = metric.grain or ""
+    columns.update((field, (grain, field)) for field in _relation_fields(grain, project, produced))
+
+    return columns
+
+
+def _expr_names(metric: EffectiveMetric) -> set[str]:
+    """The unqualified column names a metric's ``expr`` reads. A measure's
+    ``expr`` is emitted verbatim against the mart's columns, so these are mart
+    column names."""
+
+    if metric.expr is None:
+        return set()
+
+    return {
         column.name for column in parse_one(metric.expr).find_all(exp.Column) if not column.table
     }
 
-    return tuple(sorted(named.intersection(fields)))
+
+def _filter_names(metric: EffectiveMetric) -> set[str]:
+    """The mart columns a metric's ``filter:`` reads: each clause's
+    ``dimension:``, and the ``column:`` it compares against (S-0050/D-8)."""
+
+    return {
+        name
+        for clause in metric.filter
+        for name in (clause.dimension, clause.column)
+        if name is not None
+    }
 
 
 # ....................... #
@@ -700,9 +759,11 @@ def build_graph(
     Source columns feed entity fields (transform chains or recipe ``from``
     aliases); mapped entity fields feed canonical fields (``canonical:``
     links); canonical fields feed metrics (``requires``); metrics feed
-    metrics (``requires_metrics``); metrics feed the marts that carry them as
-    measures, and marts feed rollups of themselves (S-0072/the-edges); metrics
-    and marts feed the exposures that declare them (S-0063/the-graph). A step
+    metrics (``requires_metrics``); the columns a metric's ``expr`` and
+    ``filter:`` read feed it (``expr``, ``filter``); metrics feed the marts
+    that carry them as measures, and marts feed rollups of themselves
+    (S-0072/the-edges); metrics and marts feed the exposures that declare
+    them (S-0063/the-graph). A step
     sits between the relations it reads and the columns its manifest in
     ``steps`` says it produces (S-0048/D-10).
     """
@@ -728,9 +789,16 @@ def build_graph(
             Edge(src=metric_node(key(required, ids["metric"])), dst=dst, label="requires_metrics")
             for required in metric.requires_metrics
         )
+        # Lineage only, both of them (S-0048/D-9, D-11): `depends_on`,
+        # reachability and `plan()` never read these edges.
+        columns = _metric_columns(metric, project, produced)
         edges.extend(
-            Edge(src=entity_field_node(metric.grain or "", name), dst=dst, label="expr")
-            for name in _expr_fields(metric, project, produced)
+            Edge(src=entity_field_node(*columns[name]), dst=dst, label="expr")
+            for name in sorted(_expr_names(metric).intersection(columns))
+        )
+        edges.extend(
+            Edge(src=entity_field_node(*columns[name]), dst=dst, label="filter")
+            for name in sorted(_filter_names(metric).intersection(columns))
         )
 
     if project.exposures is not None:

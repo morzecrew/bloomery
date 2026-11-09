@@ -243,6 +243,13 @@ An expression metric draws an `expr` edge, `entity_field -> metric`, from each f
 - Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_edge_vocabulary.py` `tests/unit/test_resolve/test_lineage.py`
 - Consequence: `lineage()` walks from an expression metric with no `requires:` to the entity columns its `expr` reads, and from there to bronze. `topo_order`, the IR and every fingerprint are unchanged, since nothing past resolve reads the edges or the order. A field change still does not reach such a metric in `plan().downstream_impact`, which reads `depends_on`
 
+### S-0048/D-11 — `ASSUMED` (Lineage)
+
+A metric draws a `filter` edge, `entity_field -> metric`, from each column its `filter:` names, as a clause's `dimension:` or its `column:`, growing D-6's vocabulary by one label and one triple. A name in a filter or in an `expr` that is no field of the grain is read as a column that a `via:` step of a mart carrying the metric flattens in, and draws its edge from the field it is flattened from, where every carrying mart that flattens that name flattens it from the same field. A grain field wins over a flattened name. Both kinds of edge are lineage only, as D-9's are
+
+- Paths: `src/bloomery/resolve/graph.py` `tests/unit/test_resolve/test_edge_vocabulary.py` `tests/unit/test_resolve/test_lineage.py` `pages/docs/reference/api.md`
+- Consequence: `lineage()` walks from a filtered metric to the columns that decide which rows count, and from a metric over flattened columns to the related entity's fields and on to bronze; a walk downstream from such a field reaches the metric. `plan().downstream_impact` still reads `depends_on`, so a change to a filter column does not reach the metric there (D-9). Four names still draw nothing: a filter dimension spelled as a canonical that a grain column links, which S-0022/D-11 reads through that column; a date role's bucket columns; the generated `has_quality_flags`, which no field holds; and a semi-additive metric's `over:` axis. `topo_order` follows the graph, so a filtered metric now sorts after the columns its filter reads, where it could sort before them. Nothing in the compiler reads `topo_order`, and the IR and every fingerprint are unchanged
+
 ### S-0049/D-1 — `LOCKED` (Mapping identity)
 
 **The identity is the document name.** It is unique by construction (a key of the `sources` mapping), already computed, already the ordering key for `Project.mappings`, and already the user-facing coordinate for refusals (S-0019/source-paths). Consequence: identity is a filename, so a rename changes it — accepted under D4's boundary.
