@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-09
+
 ### Added
 
 - **Lineage reaches the columns a metric's `filter:` reads.** Walking upstream from a
@@ -2917,7 +2919,8 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/morzecrew/bloomery/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/morzecrew/bloomery/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/morzecrew/bloomery/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/morzecrew/bloomery/compare/v0.11.0...v0.11.1
