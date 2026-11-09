@@ -3416,7 +3416,12 @@ before returning.</p>
 <tr>
 <td><code>expr</code></td>
 <td>entity field → metric</td>
-<td>a grain-entity column an expression metric's <code>expr</code> names, including a column a step produces; lineage only</td>
+<td>a column an expression metric's <code>expr</code> names: a field of its grain, including a column a step produces, or the field a mart carrying the metric flattens it in from; lineage only</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>entity field → metric</td>
+<td>a column a metric's <code>filter:</code> names, as a <code>dimension:</code> or a <code>column:</code>, read on the same terms as <code>expr</code>; lineage only</td>
 </tr>
 <tr>
 <td><code>step_input</code></td>

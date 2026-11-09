@@ -1965,6 +1965,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#s-0048d-11-assumed-lineage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0048/D-11 — <code>ASSUMED</code> (Lineage)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#s-0091d-4-assumed-a-recipes-operands-carry-types" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2107,6 +2118,12 @@
 <ul>
 <li>Paths: <code>src/bloomery/resolve/graph.py</code> <code>src/bloomery/resolve/resolution.py</code> <code>src/bloomery/resolve/build.py</code> <code>tests/unit/test_steps/test_step_lineage.py</code> <code>pages/docs/reference/api.md</code></li>
 <li>Consequence: A walk runs through a <code>sql_model</code> step: downstream from an input column to the columns the step produces and to the metrics and marts over them, and upstream back again. <code>bloomery lineage</code> takes no registry, so it still shows the wiring alone, and so does a caller of <code>resolve()</code> that passes none: the step's out-edge goes to the one <code>entity_field</code> node named after the output, which stands for the relation it writes rather than for a column of it. Lowering, the IR and every fingerprint are unchanged, since nothing past resolve reads the graph</li>
+</ul>
+<h3 id="s-0048d-11-assumed-lineage">S-0048/D-11 — <code>ASSUMED</code> (Lineage)<a class="headerlink" href="#s-0048d-11-assumed-lineage" title="Permanent link">&para;</a></h3>
+<p>A metric draws a <code>filter</code> edge, <code>entity_field -&gt; metric</code>, from each column its <code>filter:</code> names, as a clause's <code>dimension:</code> or its <code>column:</code>, growing D-6's vocabulary by one label and one triple. A name in a filter or in an <code>expr</code> that is no field of the grain is read as a column that a <code>via:</code> step of a mart carrying the metric flattens in, and draws its edge from the field it is flattened from, where every carrying mart that flattens that name flattens it from the same field. A grain field wins over a flattened name. Both kinds of edge are lineage only, as D-9's are</p>
+<ul>
+<li>Paths: <code>src/bloomery/resolve/graph.py</code> <code>tests/unit/test_resolve/test_edge_vocabulary.py</code> <code>tests/unit/test_resolve/test_lineage.py</code> <code>pages/docs/reference/api.md</code></li>
+<li>Consequence: <code>lineage()</code> walks from a filtered metric to the columns that decide which rows count, and from a metric over flattened columns to the related entity's fields and on to bronze; a walk downstream from such a field reaches the metric. <code>plan().downstream_impact</code> still reads <code>depends_on</code>, so a change to a filter column does not reach the metric there (D-9). Four names still draw nothing: a filter dimension spelled as a canonical that a grain column links, which S-0022/D-11 reads through that column; a date role's bucket columns; the generated <code>has_quality_flags</code>, which no field holds; and a semi-additive metric's <code>over:</code> axis. <code>topo_order</code> follows the graph, so a filtered metric now sorts after the columns its filter reads, where it could sort before them. Nothing in the compiler reads <code>topo_order</code>, and the IR and every fingerprint are unchanged</li>
 </ul>
 <h3 id="s-0091d-4-assumed-a-recipes-operands-carry-types">S-0091/D-4 — <code>ASSUMED</code> (A recipe's operands carry types)<a class="headerlink" href="#s-0091d-4-assumed-a-recipes-operands-carry-types" title="Permanent link">&para;</a></h3>
 <p>Every catalog in the repository that computes a recipe over a non-canonical operand declares <code>types:</code>; the reference pages and the skill's catalog reference document the key, and the changelog marks the refusal as breaking with an upgrade note.</p>
