@@ -1,7 +1,7 @@
 # SQLMesh × 012-rollup-recounts-identities
 
-- **System:** SQLMesh `0.236.3`, against DuckDB `1.5.6` through its `duckdb` gateway.
-- **Checked:** 2026-10-20.
+- **System:** SQLMesh `0.236.4`, against DuckDB `1.5.6` through its `duckdb` gateway.
+- **Checked:** 2026-11-23.
 - **Feature set:** a SQLMesh project — `config.yaml` with one gateway, two `MODEL (...)`
   blocks with `grain` and `references`, and four `METRIC (...)` blocks. Commands run: `sqlmesh
   info`, `sqlmesh plan --auto-apply`, `sqlmesh audit`, `sqlmesh rewrite`, the last for the
