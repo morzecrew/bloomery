@@ -785,18 +785,27 @@ def test_the_measured_drift_over_mutated_generated_documents() -> None:
     applied. ``derandomize`` fixes the sample, so a collapse moves these counts
     rather than the flake rate.
 
-    Measured over 300 draws at the time of writing: 119 bases both valid and
-    parseable, and of their mutations 79 refused by the parser as
-    ``unknown-key``, 23 as ``string-to-mapping`` and 9 as ``out-of-enum``,
-    with zero the schema then accepted. The floors are loose — the point is to
-    catch a class going silent, not to pin a figure that moves whenever the
-    generator or a refusal changes.
+    Fixed for a given Hypothesis version and a given set of loaded ``bloomery``
+    modules, not across them: from Hypothesis 6.170.10, importing a module this
+    file does not, such as ``bloomery.steps.contract``, which the full suite
+    loads when it collects ``tests/unit``, draws a different sample. At 300 draws,
+    one such sample left ``out-of-enum`` at zero: seven draws, all on bases with
+    no closed-set value to replace. The sample is sized so the thinnest class
+    clears its floor by a margin rather than by luck.
+
+    Measured over 1000 draws at the time of writing, on Hypothesis 6.170.15:
+    this file alone has 292 bases both valid and parseable, and of their
+    mutations 210 refused by the parser as ``unknown-key``, 49 as
+    ``string-to-mapping`` and 23 as ``out-of-enum``. The full suite has 321
+    bases and 242, 48 and 19 refusals. The schema accepted none of them. The
+    floors are loose — the point is to catch a class going silent, not to pin
+    a figure that moves whenever the generator or a refusal changes.
     """
     refused: Counter[str] = Counter()
 
     @given(document=_ENTITY_MODELS, mutation=_MUTATIONS, seed=_SEEDS)
     @settings(
-        max_examples=300,
+        max_examples=1000,
         deadline=None,
         derandomize=True,
         database=None,

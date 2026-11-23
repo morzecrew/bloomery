@@ -1,7 +1,7 @@
 # dbt Core × 012-rollup-recounts-identities
 
-- **System:** dbt Core `1.12.6`, with the `dbt-duckdb` `1.11.0` adapter against DuckDB `1.5.6`.
-- **Checked:** 2026-10-26.
+- **System:** dbt Core `1.12.7`, with the `dbt-duckdb` `1.11.1` adapter against DuckDB `1.5.6`.
+- **Checked:** 2026-11-23.
 - **Feature set:** a dbt project — `sources:`, models (one materialized as a `table` through
   `config(materialized='table')`), and the `semantic_models:` and `metrics:` blocks dbt parses
   into its manifest (`dbt/contracts/graph/unparsed.py`), here a detail semantic model with a

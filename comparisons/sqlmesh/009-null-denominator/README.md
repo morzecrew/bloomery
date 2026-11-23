@@ -1,7 +1,7 @@
 # SQLMesh × 009-null-denominator
 
-- **System:** SQLMesh `0.236.3`, against DuckDB `1.5.6` through its `duckdb` gateway.
-- **Checked:** 2026-10-20.
+- **System:** SQLMesh `0.236.4`, against DuckDB `1.5.6` through its `duckdb` gateway.
+- **Checked:** 2026-11-23.
 - **Feature set:** a SQLMesh project — `config.yaml` with one gateway, one `MODEL (...)` block
   with `grain`, `references` and a built-in `accepted_range` audit, and six `METRIC (...)`
   blocks, two of them derived. Commands run: `sqlmesh info`, `sqlmesh plan --auto-apply`,
